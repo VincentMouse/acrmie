@@ -891,6 +891,7 @@ export function LeadManagement() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Phone</TableHead>
+              <TableHead>Service/Product</TableHead>
               {!isLeadManagementPage && <TableHead>Status</TableHead>}
               {!isLeadManagementPage && <TableHead>Cooldown Status</TableHead>}
               {!isLeadManagementPage && <TableHead>Assigned To</TableHead>}
@@ -908,6 +909,7 @@ export function LeadManagement() {
                   )}
                 </TableCell>
                 <TableCell>{lead.phone}</TableCell>
+                <TableCell>{lead.service_product || '-'}</TableCell>
                 {!isLeadManagementPage && (
                   <TableCell>
                     {(isTeleSales || isAdmin || isSalesManager) ? (
@@ -1018,6 +1020,7 @@ export function LeadManagement() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Phone</TableHead>
+                  <TableHead>Service/Product</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
@@ -1033,6 +1036,7 @@ export function LeadManagement() {
                         )}
                       </TableCell>
                       <TableCell>{lead.phone}</TableCell>
+                      <TableCell>{lead.service_product || '-'}</TableCell>
                       <TableCell>{lead.email || '-'}</TableCell>
                       <TableCell>
                         <Button
@@ -1052,7 +1056,7 @@ export function LeadManagement() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                       No follow-up leads at this time
                     </TableCell>
                   </TableRow>
