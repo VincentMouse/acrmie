@@ -115,6 +115,16 @@ export function LeadManagement() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Check if user already has an assigned lead
+      const { data: existingLeads } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('assigned_to', user.id);
+
+      if (existingLeads && existingLeads.length > 0) {
+        throw new Error('You must complete your current lead before getting a new one');
+      }
+
       const now = new Date().toISOString();
 
       // Try to get L0 (Fresh Lead) first
@@ -581,7 +591,7 @@ export function LeadManagement() {
             isTeleSales && (
               <Button 
                 onClick={() => getLeadMutation.mutate()}
-                disabled={getLeadMutation.isPending}
+                disabled={getLeadMutation.isPending || (leads && leads.length > 0)}
               >
                 Get Lead
               </Button>
