@@ -443,26 +443,29 @@ export function LeadManagement() {
           
           {pulledLead && (
             <div className="space-y-6">
-              {/* Timer */}
-              <div className="flex justify-center">
-                <div className="text-center p-4 bg-primary/10 rounded-lg">
-                  <Clock className="h-6 w-6 mx-auto mb-2 text-primary" />
-                  <div className="text-3xl font-bold text-primary">{formatTime(elapsedTime)}</div>
-                  <p className="text-sm text-muted-foreground mt-1">Call Duration</p>
+              {/* Customer Details and Timer - Same Row */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Customer Details */}
+                <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">
+                      {pulledLead.first_name} {pulledLead.last_name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-mono">{pulledLead.phone}</span>
+                  </div>
                 </div>
-              </div>
 
-              {/* Lead Details */}
-              <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">
-                    {pulledLead.first_name} {pulledLead.last_name}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-mono">{pulledLead.phone}</span>
+                {/* Timer */}
+                <div className="flex items-center justify-center p-4 bg-primary/10 rounded-lg">
+                  <div className="text-center">
+                    <Clock className="h-6 w-6 mx-auto mb-2 text-primary" />
+                    <div className="text-3xl font-bold text-primary">{formatTime(elapsedTime)}</div>
+                    <p className="text-sm text-muted-foreground mt-1">Call Duration</p>
+                  </div>
                 </div>
               </div>
 
