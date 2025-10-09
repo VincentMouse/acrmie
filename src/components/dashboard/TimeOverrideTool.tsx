@@ -55,8 +55,8 @@ export function TimeOverrideTool() {
     localStorage.setItem('timeOverride', newDate.toISOString());
     setCurrentOverride(newDate);
     
-    // Trigger a storage event to update other components
-    window.dispatchEvent(new Event('storage'));
+    // Trigger a custom event to update other components
+    window.dispatchEvent(new CustomEvent('timeOverrideChanged'));
   };
 
   const handleReset = () => {
@@ -64,7 +64,7 @@ export function TimeOverrideTool() {
     setCurrentOverride(null);
     setOverrideDate('');
     setOverrideTime('');
-    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('timeOverrideChanged'));
   };
 
   const handleQuickJump = (hours: number) => {
@@ -74,7 +74,7 @@ export function TimeOverrideTool() {
     setCurrentOverride(now);
     setOverrideDate(now.toISOString().split('T')[0]);
     setOverrideTime(now.toTimeString().slice(0, 5));
-    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('timeOverrideChanged'));
   };
 
   const getPeriodLabel = (period: number) => {

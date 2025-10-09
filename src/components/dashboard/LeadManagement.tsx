@@ -206,7 +206,7 @@ export function LeadManagement() {
         .from('leads')
         .update({ 
           assigned_to: user.id,
-          assigned_at: new Date().toISOString()
+          assigned_at: getEffectiveTime().toISOString()
         })
         .eq('id', leadId);
 
@@ -241,7 +241,7 @@ export function LeadManagement() {
         throw new Error('You must complete your current lead before getting a new one');
       }
 
-      const now = new Date().toISOString();
+      const now = getEffectiveTime().toISOString();
 
       // Try to get L0 (Fresh Lead) first
       let { data: availableLead } = await supabase
@@ -288,7 +288,7 @@ export function LeadManagement() {
         .from('leads')
         .update({ 
           assigned_to: user.id,
-          assigned_at: new Date().toISOString()
+          assigned_at: getEffectiveTime().toISOString()
         })
         .eq('id', availableLead.id);
 
@@ -314,7 +314,7 @@ export function LeadManagement() {
         const setting = settings?.find(s => s.setting_key === 'l5_cooldown_hours');
         
         if (setting && setting.setting_value > 0) {
-          const cooldownUntil = new Date();
+          const cooldownUntil = getEffectiveTime();
           cooldownUntil.setHours(cooldownUntil.getHours() + Number(setting.setting_value));
           updates.cooldown_until = cooldownUntil.toISOString();
         }
@@ -376,7 +376,7 @@ export function LeadManagement() {
         // Update L1 tracking fields
         updates.l1_contact_count = currentContactCount + 1;
         updates.l1_last_contact_period = currentPeriod;
-        updates.l1_last_contact_time = new Date().toISOString();
+        updates.l1_last_contact_time = getEffectiveTime().toISOString();
         
         // Increment period-specific count
         if (currentPeriod === 1) {
@@ -423,7 +423,7 @@ export function LeadManagement() {
         const setting = settings?.find(s => s.setting_key === 'l5_cooldown_hours');
         
         if (setting && setting.setting_value > 0) {
-          const cooldownUntil = new Date();
+          const cooldownUntil = getEffectiveTime();
           cooldownUntil.setHours(cooldownUntil.getHours() + Number(setting.setting_value));
           updates.cooldown_until = cooldownUntil.toISOString();
         }
@@ -475,7 +475,7 @@ export function LeadManagement() {
         .update({ 
           setting_value: value,
           updated_by: user?.id,
-          updated_at: new Date().toISOString()
+          updated_at: getEffectiveTime().toISOString()
         })
         .eq('setting_key', settingKey);
 
@@ -511,7 +511,7 @@ export function LeadManagement() {
   const getRemainingCooldown = (cooldownUntil: string | null) => {
     if (!cooldownUntil) return null;
     
-    const now = new Date();
+    const now = getEffectiveTime();
     const cooldown = new Date(cooldownUntil);
     
     if (now >= cooldown) return null;
@@ -551,6 +551,18 @@ export function LeadManagement() {
     return () => clearInterval(interval);
   }, [isLeadModalOpen]);
 
+  // Listen for time override changes and refresh data
+  useEffect(() => {
+    const handleTimeOverrideChange = () => {
+      // Invalidate queries to refresh lead data with new effective time
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['follow-up-leads'] });
+    };
+
+    window.addEventListener('timeOverrideChanged', handleTimeOverrideChange);
+    return () => window.removeEventListener('timeOverrideChanged', handleTimeOverrideChange);
+  }, [queryClient]);
+
   // Auto-return expired leads to pool
   useEffect(() => {
     if (!isLeadManagementPage || !isTeleSales || isLeadModalOpen) return;
@@ -559,7 +571,7 @@ export function LeadManagement() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const thirtyMinutesAgo = new Date();
+      const thirtyMinutesAgo = getEffectiveTime();
       thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
 
       // Find leads assigned to current user that have expired
@@ -611,7 +623,7 @@ export function LeadManagement() {
     if (!assignedAt) return null;
     
     const assigned = new Date(assignedAt);
-    const now = new Date();
+    const now = getEffectiveTime();
     const thirtyMinutes = 30 * 60 * 1000;
     const elapsed = now.getTime() - assigned.getTime();
     const remaining = thirtyMinutes - elapsed;
