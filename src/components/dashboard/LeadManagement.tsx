@@ -130,6 +130,7 @@ export function LeadManagement() {
   const [showWipeConfirmDialog, setShowWipeConfirmDialog] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const leadsPerPage = 10;
   
   // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
@@ -1163,30 +1164,17 @@ export function LeadManagement() {
               </Button>
             )
           ) : (
-            <div className="flex gap-3">
-              <div className="relative w-64">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name or phone..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1); // Reset to first page on search
-                  }}
-                  className="pl-10"
-                />
-              </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-64">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
-                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name or phone..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1); // Reset to first page on search
+                }}
+                className="pl-10"
+              />
             </div>
           )}
         </div>
@@ -1194,22 +1182,63 @@ export function LeadManagement() {
       {/* Status Summary */}
       {!isLeadManagementPage && (
         <div className="mb-6 p-4 bg-muted/50 rounded-lg">
-          <h3 className="text-lg font-semibold mb-3">Lead Status Summary</h3>
+          <h3 className="text-lg font-semibold mb-3">Lead Status Summary - Click to Filter</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {Object.entries(STATUS_LABELS).filter(([key]) => key !== 'hibernation').map(([statusKey, statusLabel]) => {
               const count = statusSummary?.[statusKey] || 0;
+              const isSelected = selectedStatuses.includes(statusKey);
               return (
-                <div key={statusKey} className="flex flex-col p-3 bg-background rounded-md border">
-                  <span className="text-2xl font-bold text-primary">{count}</span>
-                  <span className="text-sm text-muted-foreground">{statusLabel}</span>
-                </div>
+                <button
+                  key={statusKey}
+                  onClick={() => {
+                    setSelectedStatuses(prev => {
+                      if (prev.includes(statusKey)) {
+                        // Remove if already selected
+                        return prev.filter(s => s !== statusKey);
+                      } else {
+                        // Add to selection
+                        return [...prev, statusKey];
+                      }
+                    });
+                    setCurrentPage(1); // Reset to first page
+                  }}
+                  className={cn(
+                    "flex flex-col p-3 rounded-md border transition-all cursor-pointer hover:shadow-md",
+                    isSelected 
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+                      : "bg-background hover:bg-accent"
+                  )}
+                >
+                  <span className={cn(
+                    "text-2xl font-bold",
+                    isSelected ? "text-primary-foreground" : "text-primary"
+                  )}>{count}</span>
+                  <span className={cn(
+                    "text-sm",
+                    isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
+                  )}>{statusLabel}</span>
+                </button>
               );
             })}
           </div>
           <div className="mt-3 pt-3 border-t flex justify-between items-center">
-            <div>
-              <span className="text-sm font-medium">Total Active Leads: </span>
-              <span className="text-lg font-bold text-primary">{leads?.length || 0}</span>
+            <div className="flex items-center gap-4">
+              <div>
+                <span className="text-sm font-medium">Total Active Leads: </span>
+                <span className="text-lg font-bold text-primary">{leads?.length || 0}</span>
+              </div>
+              {selectedStatuses.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedStatuses([]);
+                    setCurrentPage(1);
+                  }}
+                >
+                  Clear Filters ({selectedStatuses.length})
+                </Button>
+              )}
             </div>
             <div>
               <span className="text-sm font-medium">Hibernation: </span>
@@ -1235,13 +1264,26 @@ export function LeadManagement() {
           </TableHeader>
           <TableBody>
             {(() => {
-              // Filter leads based on search query
+              // Filter leads based on search query and selected statuses
               const filteredLeads = leads?.filter(lead => {
-                if (!searchQuery) return true;
-                const query = searchQuery.toLowerCase();
-                const fullName = `${lead.first_name} ${lead.last_name}`.toLowerCase();
-                const phone = lead.phone.toLowerCase();
-                return fullName.includes(query) || phone.includes(query);
+                // Search filter
+                if (searchQuery) {
+                  const query = searchQuery.toLowerCase();
+                  const fullName = `${lead.first_name} ${lead.last_name}`.toLowerCase();
+                  const phone = lead.phone.toLowerCase();
+                  if (!fullName.includes(query) && !phone.includes(query)) {
+                    return false;
+                  }
+                }
+                
+                // Status filter (only if statuses are selected)
+                if (selectedStatuses.length > 0) {
+                  if (!selectedStatuses.includes(lead.status)) {
+                    return false;
+                  }
+                }
+                
+                return true;
               }) || [];
 
               // Apply pagination to filtered results
@@ -1366,11 +1408,24 @@ export function LeadManagement() {
       {/* Pagination Controls */}
       {(() => {
         const filteredLeads = leads?.filter(lead => {
-          if (!searchQuery) return true;
-          const query = searchQuery.toLowerCase();
-          const fullName = `${lead.first_name} ${lead.last_name}`.toLowerCase();
-          const phone = lead.phone.toLowerCase();
-          return fullName.includes(query) || phone.includes(query);
+          // Search filter
+          if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            const fullName = `${lead.first_name} ${lead.last_name}`.toLowerCase();
+            const phone = lead.phone.toLowerCase();
+            if (!fullName.includes(query) && !phone.includes(query)) {
+              return false;
+            }
+          }
+          
+          // Status filter (only if statuses are selected)
+          if (selectedStatuses.length > 0) {
+            if (!selectedStatuses.includes(lead.status)) {
+              return false;
+            }
+          }
+          
+          return true;
         }) || [];
 
         return filteredLeads.length > leadsPerPage && (
