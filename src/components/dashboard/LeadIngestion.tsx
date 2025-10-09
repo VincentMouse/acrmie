@@ -260,7 +260,7 @@ export function LeadIngestion() {
     <Card className="p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-2xl font-bold">Lead Ingestion</h2>
+          <h2 className="text-2xl font-bold">New Lead Ingestion</h2>
           <p className="text-muted-foreground mt-1">
             Add cold leads manually or upload via CSV spreadsheet. Duplicates will be automatically flagged.
           </p>
