@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 
 const STATUS_LABELS = {
   status_0: 'L0 - Fresh Lead',
-  status_1: 'L1 - No Answer',
+  status_1: 'L1 - Call Back',
   status_2: 'L2 - Call Rescheduled',
   status_3: 'L3 - Cancelled',
   status_4: 'L4 - Blacklisted',
@@ -785,7 +785,7 @@ export function LeadManagement() {
           <CardContent>
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-3">
-                <Label htmlFor="l1-cooldown">L1 - No Answer Cooldown (hours)</Label>
+                <Label htmlFor="l1-cooldown">L1 - Call Back Cooldown (hours)</Label>
                 <div className="flex gap-2">
                   <Input
                     id="l1-cooldown"
