@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Clock, Settings, Phone, User, Timer, CalendarIcon, TestTube, Trash2 } from 'lucide-react';
+import { Clock, Settings, Phone, User, Timer, CalendarIcon, TestTube, Trash2, Search } from 'lucide-react';
 import { format, setHours, setMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { TimeOverrideTool } from './TimeOverrideTool';
@@ -129,6 +129,7 @@ export function LeadManagement() {
   const [showNoLeadsDialog, setShowNoLeadsDialog] = useState(false);
   const [showWipeConfirmDialog, setShowWipeConfirmDialog] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
   const leadsPerPage = 10;
   
   // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
@@ -1162,17 +1163,31 @@ export function LeadManagement() {
               </Button>
             )
           ) : (
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-3">
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or phone..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1); // Reset to first page on search
+                  }}
+                  className="pl-10"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
         </div>
 
@@ -1219,7 +1234,20 @@ export function LeadManagement() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {leads?.slice((currentPage - 1) * leadsPerPage, currentPage * leadsPerPage).map((lead) => (
+            {(() => {
+              // Filter leads based on search query
+              const filteredLeads = leads?.filter(lead => {
+                if (!searchQuery) return true;
+                const query = searchQuery.toLowerCase();
+                const fullName = `${lead.first_name} ${lead.last_name}`.toLowerCase();
+                const phone = lead.phone.toLowerCase();
+                return fullName.includes(query) || phone.includes(query);
+              }) || [];
+
+              // Apply pagination to filtered results
+              const paginatedLeads = filteredLeads.slice((currentPage - 1) * leadsPerPage, currentPage * leadsPerPage);
+
+              return paginatedLeads.map((lead) => (
               <TableRow key={lead.id}>
                 <TableCell className="font-medium">
                   {lead.first_name} {lead.last_name}
@@ -1329,13 +1357,23 @@ export function LeadManagement() {
                   </TableCell>
                 )}
               </TableRow>
-            ))}
+              ));
+            })()}
           </TableBody>
         </Table>
       </div>
 
       {/* Pagination Controls */}
-      {leads && leads.length > leadsPerPage && (
+      {(() => {
+        const filteredLeads = leads?.filter(lead => {
+          if (!searchQuery) return true;
+          const query = searchQuery.toLowerCase();
+          const fullName = `${lead.first_name} ${lead.last_name}`.toLowerCase();
+          const phone = lead.phone.toLowerCase();
+          return fullName.includes(query) || phone.includes(query);
+        }) || [];
+
+        return filteredLeads.length > leadsPerPage && (
         <div className="mt-4">
           <Pagination>
             <PaginationContent>
@@ -1350,8 +1388,8 @@ export function LeadManagement() {
                 />
               </PaginationItem>
               
-              {Array.from({ length: Math.ceil(leads.length / leadsPerPage) }, (_, i) => i + 1).map((page) => {
-                const totalPages = Math.ceil(leads.length / leadsPerPage);
+              {Array.from({ length: Math.ceil(filteredLeads.length / leadsPerPage) }, (_, i) => i + 1).map((page) => {
+                const totalPages = Math.ceil(filteredLeads.length / leadsPerPage);
                 // Show first page, last page, current page, and one page on each side of current
                 if (
                   page === 1 ||
@@ -1388,17 +1426,18 @@ export function LeadManagement() {
                   href="#"
                   onClick={(e) => {
                     e.preventDefault();
-                    if (currentPage < Math.ceil(leads.length / leadsPerPage)) {
+                    if (currentPage < Math.ceil(filteredLeads.length / leadsPerPage)) {
                       setCurrentPage(currentPage + 1);
                     }
                   }}
-                  className={currentPage >= Math.ceil(leads.length / leadsPerPage) ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                  className={currentPage >= Math.ceil(filteredLeads.length / leadsPerPage) ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
                 />
               </PaginationItem>
             </PaginationContent>
           </Pagination>
         </div>
-      )}
+        );
+      })()}
       </Card>
 
       {/* Hibernation Leads - Only on Leads page */}
