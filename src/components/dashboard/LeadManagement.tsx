@@ -102,6 +102,79 @@ export function LeadManagement() {
     },
   });
 
+  const getLeadMutation = useMutation({
+    mutationFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const now = new Date().toISOString();
+
+      // Try to get L0 (Fresh Lead) first
+      let { data: availableLead } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('status', 'status_0')
+        .is('assigned_to', null)
+        .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
+        .limit(1)
+        .single();
+
+      // If no L0, try L1 (No Answer)
+      if (!availableLead) {
+        const result = await supabase
+          .from('leads')
+          .select('id')
+          .eq('status', 'status_1')
+          .is('assigned_to', null)
+          .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
+          .limit(1)
+          .maybeSingle();
+        availableLead = result.data;
+      }
+
+      // If no L1, try L5 (Thinking)
+      if (!availableLead) {
+        const result = await supabase
+          .from('leads')
+          .select('id')
+          .eq('status', 'status_5')
+          .is('assigned_to', null)
+          .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
+          .limit(1)
+          .maybeSingle();
+        availableLead = result.data;
+      }
+
+      if (!availableLead) {
+        throw new Error('No available leads at this time');
+      }
+
+      // Assign the lead to the current user
+      const { error } = await supabase
+        .from('leads')
+        .update({ assigned_to: user.id })
+        .eq('id', availableLead.id);
+
+      if (error) throw error;
+
+      return availableLead;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast({ 
+        title: 'Lead assigned', 
+        description: 'A new lead has been assigned to you' 
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'No leads available', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+    },
+  });
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({ leadId, status }: { leadId: string; status: string }) => {
       const updates: any = { status: status as any };
@@ -306,17 +379,27 @@ export function LeadManagement() {
             {isLeadManagementPage ? 'My Assigned Leads' : 'Lead Management'}
           </h2>
           
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-64">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>{label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-3">
+            {isLeadManagementPage && isTeleSales && (
+              <Button 
+                onClick={() => getLeadMutation.mutate()}
+                disabled={getLeadMutation.isPending}
+              >
+                Get Lead
+              </Button>
+            )}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
       {/* Status Summary */}
