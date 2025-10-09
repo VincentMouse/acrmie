@@ -30,13 +30,16 @@ export default function Dashboard() {
   if (!user) return null;
 
   // Determine default route based on role
-  const defaultRoute = isCustomerService ? "/dashboard/appointments" : "/dashboard/leads";
+  const defaultRoute = isCustomerService 
+    ? "/dashboard/appointments" 
+    : (isViewOnly ? "/dashboard/lead-management" : "/dashboard/leads");
 
   return (
     <DashboardLayout>
       <Routes>
         <Route path="/" element={<Navigate to={defaultRoute} replace />} />
         <Route path="/leads" element={<LeadManagement />} />
+        <Route path="/lead-management" element={<LeadManagement />} />
         <Route path="/ingestion" element={<LeadIngestion />} />
         <Route path="/appointments" element={<AppointmentManagement />} />
         <Route path="/users" element={<UserManagement />} />

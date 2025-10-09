@@ -25,7 +25,8 @@ export function AppSidebar() {
 
   const menuItems = [
     { title: 'Lead Ingestion', url: '/dashboard/ingestion', icon: UserPlus, show: isAdmin || isSalesManager },
-    { title: 'Leads', url: '/dashboard/leads', icon: FileText, show: !isCustomerService },
+    { title: 'Leads', url: '/dashboard/leads', icon: FileText, show: (isAdmin || isSalesManager || isViewOnly) && !isTeleSales },
+    { title: 'Lead Management', url: '/dashboard/lead-management', icon: FileText, show: isTeleSales },
     { title: 'Appointments', url: '/dashboard/appointments', icon: Calendar, show: isTeleSales || isCustomerService || isAdmin || isSalesManager || isViewOnly },
     { title: 'User Management', url: '/dashboard/users', icon: Users, show: isAdmin },
   ];
