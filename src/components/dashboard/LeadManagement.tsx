@@ -130,6 +130,17 @@ export function LeadManagement() {
   // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
   const isLeadManagementPage = location.pathname === '/dashboard/lead-management';
 
+  // Listen for time override changes and invalidate queries
+  useEffect(() => {
+    const handleTimeOverrideChange = () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['follow-up-leads'] });
+    };
+
+    window.addEventListener('timeOverrideChanged', handleTimeOverrideChange);
+    return () => window.removeEventListener('timeOverrideChanged', handleTimeOverrideChange);
+  }, [queryClient]);
+
   // Fetch cooldown settings
   const { data: settings } = useQuery({
     queryKey: ['lead-settings'],
@@ -1307,15 +1318,17 @@ export function LeadManagement() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>⚠️ Wipe All Data</DialogTitle>
-            <DialogDescription>
-              This will permanently delete all:
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>Leads</li>
-                <li>Lead History</li>
-                <li>Appointments</li>
-                <li>Customers</li>
-              </ul>
-              <p className="mt-3 font-semibold text-destructive">This action cannot be undone!</p>
+            <DialogDescription asChild>
+              <div>
+                This will permanently delete all:
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li>Leads</li>
+                  <li>Lead History</li>
+                  <li>Appointments</li>
+                  <li>Customers</li>
+                </ul>
+                <div className="mt-3 font-semibold text-destructive">This action cannot be undone!</div>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
