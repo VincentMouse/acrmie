@@ -9,8 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Building2, Plus, Clock, Upload, Package } from 'lucide-react';
+import { Building2, Plus, Clock, Upload, Package, Trash2 } from 'lucide-react';
 import Papa from 'papaparse';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -20,6 +21,7 @@ export function BranchManagement() {
   const [newBranch, setNewBranch] = useState({ name: '', address: '' });
   const [workingHours, setWorkingHours] = useState<Record<number, { start: string; end: string; active: boolean }>>({});
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [typeFilter, setTypeFilter] = useState<string>('all');
   const queryClient = useQueryClient();
 
   // Fetch branches
@@ -144,7 +146,7 @@ export function BranchManagement() {
                   branch_id: selectedBranch,
                   code: row.Code,
                   name: row.Name,
-                  price: parseFloat(row.Price) || 0,
+                  price: row.Price ? parseFloat(row.Price.toString().replace(/,/g, '')) : 0,
                   number_of_treatments: parseInt(row['Number of treatment']) || null,
                   type: row.Type || '',
                   category: row['Service/Product'] === 'Service' ? 'Service' : 'Product',
@@ -170,6 +172,25 @@ export function BranchManagement() {
     },
     onError: () => {
       toast.error('Failed to upload CSV');
+    },
+  });
+
+  // Delete all services/products mutation
+  const deleteAllServicesMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedBranch) return;
+      const { error } = await supabase
+        .from('services_products')
+        .delete()
+        .eq('branch_id', selectedBranch);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services_products'] });
+      toast.success('All services and products deleted');
+    },
+    onError: () => {
+      toast.error('Failed to delete services and products');
     },
   });
 
@@ -334,26 +355,55 @@ export function BranchManagement() {
               </TabsContent>
 
               <TabsContent value="services" className="space-y-4">
+                <div className="flex items-center gap-4 mb-4">
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Filter by type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      {Array.from(new Set(servicesProducts?.map(item => item.type) || [])).map(type => (
+                        <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="destructive"
+                    onClick={() => deleteAllServicesMutation.mutate()}
+                    disabled={!servicesProducts?.length}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete All
+                  </Button>
+                </div>
                 <div className="space-y-2">
-                  {servicesProducts?.map((item) => (
-                    <div key={item.id} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-semibold">
-                            {item.code} - {item.name}
-                          </h4>
-                          <p className="text-sm text-muted-foreground">
-                            {item.category} | {item.type} | ${item.price}
-                            {item.number_of_treatments &&
-                              ` | ${item.number_of_treatments} treatments`}
-                          </p>
+                  {servicesProducts
+                    ?.filter(item => typeFilter === 'all' || item.type === typeFilter)
+                    .map((item) => (
+                      <div key={item.id} className="p-4 border rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold">
+                              {item.code} - {item.name}
+                            </h4>
+                            <p className="text-sm text-muted-foreground">
+                              {item.category} | {item.type} | ₱{item.price.toLocaleString()}
+                              {item.number_of_treatments &&
+                                ` | ${item.number_of_treatments} treatments`}
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                   {!servicesProducts?.length && (
                     <p className="text-center text-muted-foreground py-8">
                       No services or products yet. Upload a CSV to add them.
+                    </p>
+                  )}
+                  {servicesProducts?.length && typeFilter !== 'all' && 
+                   servicesProducts.filter(item => item.type === typeFilter).length === 0 && (
+                    <p className="text-center text-muted-foreground py-8">
+                      No services or products found for this type.
                     </p>
                   )}
                 </div>
