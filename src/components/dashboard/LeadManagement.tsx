@@ -13,7 +13,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Clock, Settings, Phone, User, Timer } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Clock, Settings, Phone, User, Timer, CalendarIcon } from 'lucide-react';
+import { format, setHours, setMinutes } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 const STATUS_LABELS = {
   status_0: 'L0 - Fresh Lead',
@@ -39,6 +43,9 @@ export function LeadManagement() {
   const [callNotes, setCallNotes] = useState<string>('');
   const [statusUpdate, setStatusUpdate] = useState<string>('');
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [callbackDate, setCallbackDate] = useState<Date | undefined>(undefined);
+  const [callbackTime, setCallbackTime] = useState<string>('10:00');
+  const [assignTo, setAssignTo] = useState<'self' | 'team'>('self');
   
   // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
   const isLeadManagementPage = location.pathname === '/dashboard/lead-management';
@@ -110,6 +117,9 @@ export function LeadManagement() {
     },
     enabled: isLeadManagementPage,
   });
+
+  // Count self-managed L2 leads for current user
+  const selfManagedL2Count = followUpLeads?.length || 0;
 
   const assignToMeMutation = useMutation({
     mutationFn: async (leadId: string) => {
@@ -260,14 +270,40 @@ export function LeadManagement() {
       if (!pulledLead) throw new Error('No lead selected');
       if (!statusUpdate) throw new Error('Status update is required');
 
+      // Validate L2 specific fields
+      if (statusUpdate === 'status_2') {
+        if (!callbackDate) throw new Error('Callback date is required for L2');
+        if (!callbackTime) throw new Error('Callback time is required for L2');
+      }
+
       const updates: any = { 
         status: statusUpdate as any,
         notes: callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`,
-        // Only unassign if NOT L2 (Call Rescheduled)
-        assigned_to: statusUpdate === 'status_2' ? pulledLead.assigned_to : null,
-        // Clear assigned_at when unassigning
-        assigned_at: statusUpdate === 'status_2' ? pulledLead.assigned_at : null
       };
+
+      // Handle L2 (Call Rescheduled) assignment logic
+      if (statusUpdate === 'status_2') {
+        if (assignTo === 'self') {
+          // Keep assigned to current user for self-managed callback
+          updates.assigned_to = pulledLead.assigned_to;
+          updates.assigned_at = pulledLead.assigned_at;
+        } else {
+          // Return to pool (unassign)
+          updates.assigned_to = null;
+          updates.assigned_at = null;
+        }
+
+        // Set callback datetime
+        if (callbackDate && callbackTime) {
+          const [hours, minutes] = callbackTime.split(':');
+          const callbackDateTime = setMinutes(setHours(callbackDate, parseInt(hours)), parseInt(minutes));
+          updates.notes = `${updates.notes} | Callback: ${format(callbackDateTime, 'PPp')}`;
+        }
+      } else {
+        // For other statuses, unassign the lead
+        updates.assigned_to = null;
+        updates.assigned_at = null;
+      }
       
       // Auto-apply cooldown for L1 and L5
       if (statusUpdate === 'status_1' || statusUpdate === 'status_5') {
@@ -292,12 +328,16 @@ export function LeadManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['follow-up-leads'] });
       setIsLeadModalOpen(false);
       setPulledLead(null);
       setCallOutcome('');
       setCallNotes('');
       setStatusUpdate('');
       setElapsedTime(0);
+      setCallbackDate(undefined);
+      setCallbackTime('10:00');
+      setAssignTo('self');
       toast({ title: 'Call completed', description: 'Lead has been updated successfully' });
     },
     onError: (error: any) => {
@@ -386,6 +426,17 @@ export function LeadManagement() {
     }
     return `${minutes}m`;
   };
+
+  // Auto-set call outcome when L2 is selected
+  useEffect(() => {
+    if (statusUpdate === 'status_2') {
+      setCallOutcome('call_rescheduled');
+      // If user has 5+ self-managed L2 leads, force assign to team
+      if (selfManagedL2Count >= 5) {
+        setAssignTo('team');
+      }
+    }
+  }, [statusUpdate, selfManagedL2Count]);
 
   // Timer for lead call tracking
   useEffect(() => {
@@ -567,7 +618,11 @@ export function LeadManagement() {
                   <>
                     <div className="space-y-2">
                       <Label htmlFor="call-outcome">Call Outcome *</Label>
-                      <Select value={callOutcome} onValueChange={setCallOutcome}>
+                      <Select 
+                        value={callOutcome} 
+                        onValueChange={setCallOutcome}
+                        disabled={statusUpdate === 'status_2'}
+                      >
                         <SelectTrigger id="call-outcome">
                           <SelectValue placeholder="Select outcome" />
                         </SelectTrigger>
@@ -580,6 +635,83 @@ export function LeadManagement() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* L2 Specific Fields */}
+                    {statusUpdate === 'status_2' && (
+                      <>
+                        <div className="space-y-2">
+                          <Label htmlFor="callback-date">Time of Callback *</Label>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                id="callback-date"
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !callbackDate && "text-muted-foreground"
+                                )}
+                              >
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {callbackDate ? format(callbackDate, 'PPP') : "Pick a date"}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={callbackDate}
+                                onSelect={setCallbackDate}
+                                disabled={(date) => date < new Date()}
+                                initialFocus
+                                className="pointer-events-auto"
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="callback-time">Time (Vietnam Time: 10am - 7pm) *</Label>
+                          <Select value={callbackTime} onValueChange={setCallbackTime}>
+                            <SelectTrigger id="callback-time">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 10 }, (_, i) => {
+                                const hour = 10 + i;
+                                return (
+                                  <SelectItem key={`${hour}:00`} value={`${hour}:00`}>
+                                    {hour}:00
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="assign-to">Assign To *</Label>
+                          <Select 
+                            value={assignTo} 
+                            onValueChange={(val) => setAssignTo(val as 'self' | 'team')}
+                            disabled={selfManagedL2Count >= 5 && assignTo === 'self'}
+                          >
+                            <SelectTrigger id="assign-to">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="self" disabled={selfManagedL2Count >= 5}>
+                                Self {selfManagedL2Count >= 5 && '(Limit reached: 5/5)'}
+                              </SelectItem>
+                              <SelectItem value="team">All of Team</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {selfManagedL2Count >= 5 && (
+                            <p className="text-sm text-destructive">
+                              You have reached the maximum of 5 self-managed callback leads
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    )}
 
                     <div className="space-y-2">
                       <Label htmlFor="call-notes">Call Notes</Label>
@@ -607,13 +739,21 @@ export function LeadManagement() {
                 setCallNotes('');
                 setStatusUpdate('');
                 setElapsedTime(0);
+                setCallbackDate(undefined);
+                setCallbackTime('10:00');
+                setAssignTo('self');
               }}
             >
               Cancel
             </Button>
             <Button
               onClick={() => submitCallMutation.mutate()}
-              disabled={!callOutcome || !statusUpdate || submitCallMutation.isPending}
+              disabled={
+                !callOutcome || 
+                !statusUpdate || 
+                submitCallMutation.isPending ||
+                (statusUpdate === 'status_2' && (!callbackDate || !callbackTime))
+              }
             >
               Submit Call
             </Button>
