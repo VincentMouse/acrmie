@@ -1,13 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useRoleView } from './useRoleView';
 
 export type UserRole = 'admin' | 'sales_manager' | 'tele_sales' | 'customer_service' | 'view_only';
 
 export function useUserRole() {
   const { user } = useAuth();
+  const { viewAsRole } = useRoleView();
 
-  const { data: roles, isLoading } = useQuery({
+  const { data: actualRoles, isLoading } = useQuery({
     queryKey: ['user-roles', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -23,7 +25,10 @@ export function useUserRole() {
     enabled: !!user?.id,
   });
 
-  const hasRole = (role: UserRole) => roles?.includes(role) ?? false;
+  // If viewing as a specific role, use that instead of actual roles
+  const effectiveRoles = viewAsRole ? [viewAsRole] : (actualRoles ?? []);
+
+  const hasRole = (role: UserRole) => effectiveRoles.includes(role);
 
   const isAdmin = hasRole('admin');
   const isSalesManager = hasRole('sales_manager');
@@ -32,7 +37,8 @@ export function useUserRole() {
   const isViewOnly = hasRole('view_only');
 
   return {
-    roles: roles ?? [],
+    roles: effectiveRoles,
+    actualRoles: actualRoles ?? [],
     hasRole,
     isAdmin,
     isSalesManager,
