@@ -70,9 +70,9 @@ export function LeadManagement() {
         `)
         .order('created_at', { ascending: false });
 
-      // For Lead Management page, only show leads assigned to current user
+      // For Lead Management page, only show leads assigned to current user (excluding L2 - Call Rescheduled)
       if (isLeadManagementPage && user) {
-        query = query.eq('assigned_to', user.id);
+        query = query.eq('assigned_to', user.id).neq('status', 'status_2');
       }
 
       if (statusFilter !== 'all') {
@@ -83,6 +83,32 @@ export function LeadManagement() {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Query for follow-up leads (L2 - Call Rescheduled) on My Assigned Leads page
+  const { data: followUpLeads, isLoading: isLoadingFollowUp } = useQuery({
+    queryKey: ['follow-up-leads', isLeadManagementPage],
+    queryFn: async () => {
+      if (!isLeadManagementPage) return [];
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from('leads')
+        .select(`
+          *,
+          funnel:funnels(name),
+          assigned:profiles!leads_assigned_to_fkey(full_name)
+        `)
+        .eq('assigned_to', user.id)
+        .eq('status', 'status_2')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: isLeadManagementPage,
   });
 
   const assignToMeMutation = useMutation({
@@ -230,7 +256,8 @@ export function LeadManagement() {
       const updates: any = { 
         status: statusUpdate as any,
         notes: callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`,
-        assigned_to: null // Unassign the lead when completed
+        // Only unassign if NOT L2 (Call Rescheduled)
+        assigned_to: statusUpdate === 'status_2' ? pulledLead.assigned_to : null
       };
       
       // Auto-apply cooldown for L1 and L5
@@ -579,9 +606,10 @@ export function LeadManagement() {
               </div>
             </div>
           </CardContent>
-        </Card>
+      </Card>
       )}
 
+      {/* My Assigned Leads */}
       <Card className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">
@@ -727,6 +755,65 @@ export function LeadManagement() {
         </Table>
       </div>
       </Card>
+
+      {/* My Follow-Up Leads - Only on My Assigned Leads page */}
+      {isLeadManagementPage && isTeleSales && (
+        <Card className="p-6">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold">My Follow-Up Leads</h2>
+            <p className="text-sm text-muted-foreground mt-1">Leads scheduled for callback (L2 - Call Rescheduled)</p>
+          </div>
+
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {followUpLeads && followUpLeads.length > 0 ? (
+                  followUpLeads.map((lead) => (
+                    <TableRow key={lead.id}>
+                      <TableCell className="font-medium">
+                        {lead.first_name} {lead.last_name}
+                        {lead.is_duplicate && (
+                          <Badge variant="destructive" className="ml-2">Duplicate</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>{lead.email || '-'}</TableCell>
+                      <TableCell>{lead.phone}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setPulledLead(lead);
+                            setIsLeadModalOpen(true);
+                            setElapsedTime(0);
+                          }}
+                        >
+                          <Phone className="h-4 w-4 mr-2" />
+                          Call
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      No follow-up leads at this time
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
