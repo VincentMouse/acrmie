@@ -410,13 +410,6 @@ export function LeadIngestion() {
           </DialogContent>
         </Dialog>
       </div>
-
-      <div className="text-sm text-muted-foreground">
-        <p>• Cold leads can be uploaded via CSV or entered manually</p>
-        <p>• All leads are created with status "New - Unassigned" (Status 0)</p>
-        <p>• Duplicate detection is automatic based on phone number</p>
-        <p>• Lead Generation Date is automatically set to Vietnam timezone</p>
-      </div>
     </Card>
   );
 }
