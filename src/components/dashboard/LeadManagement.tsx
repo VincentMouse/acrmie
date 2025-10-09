@@ -1,0 +1,177 @@
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useUserRole } from '@/hooks/useUserRole';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+const STATUS_LABELS = {
+  status_0: 'New - Unassigned',
+  status_1: 'Initial Contact',
+  status_2: 'Qualified',
+  status_3: 'Proposal',
+  status_4: 'Negotiation',
+  status_5: 'Verbal Agreement',
+  status_6: 'Ready for Sales',
+};
+
+export function LeadManagement() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { isTeleSales, isAdmin, isSalesManager } = useUserRole();
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  const { data: leads, isLoading } = useQuery({
+    queryKey: ['leads', statusFilter],
+    queryFn: async () => {
+      let query = supabase
+        .from('leads')
+        .select(`
+          *,
+          funnel:funnels(name),
+          assigned:profiles!leads_assigned_to_fkey(full_name)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter as any);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const assignToMeMutation = useMutation({
+    mutationFn: async (leadId: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('leads')
+        .update({ assigned_to: user.id })
+        .eq('id', leadId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast({ title: 'Lead assigned', description: 'Lead has been assigned to you' });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Assignment failed', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ leadId, status }: { leadId: string; status: string }) => {
+      const { error } = await supabase
+        .from('leads')
+        .update({ status: status as any })
+        .eq('id', leadId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast({ title: 'Status updated', description: 'Lead status has been updated' });
+    },
+  });
+
+  if (isLoading) {
+    return <div className="text-center py-8">Loading leads...</div>;
+  }
+
+  return (
+    <Card className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Lead Management</h2>
+        
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-64">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            {Object.entries(STATUS_LABELS).map(([value, label]) => (
+              <SelectItem key={value} value={value}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Phone</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Funnel</TableHead>
+              <TableHead>Assigned To</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {leads?.map((lead) => (
+              <TableRow key={lead.id}>
+                <TableCell className="font-medium">
+                  {lead.first_name} {lead.last_name}
+                  {lead.is_duplicate && (
+                    <Badge variant="destructive" className="ml-2">Duplicate</Badge>
+                  )}
+                </TableCell>
+                <TableCell>{lead.email || '-'}</TableCell>
+                <TableCell>{lead.phone}</TableCell>
+                <TableCell>
+                  {(isTeleSales || isAdmin || isSalesManager) ? (
+                    <Select
+                      value={lead.status}
+                      onValueChange={(value) => 
+                        updateStatusMutation.mutate({ leadId: lead.id, status: value })
+                      }
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge>{STATUS_LABELS[lead.status as keyof typeof STATUS_LABELS]}</Badge>
+                  )}
+                </TableCell>
+                <TableCell>{lead.funnel?.name}</TableCell>
+                <TableCell>{lead.assigned?.full_name || 'Unassigned'}</TableCell>
+                <TableCell>
+                  {!lead.assigned_to && isTeleSales && lead.status === 'status_0' && (
+                    <Button
+                      size="sm"
+                      onClick={() => assignToMeMutation.mutate(lead.id)}
+                      disabled={assignToMeMutation.isPending}
+                    >
+                      Assign to Me
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </Card>
+  );
+}

@@ -1,7 +1,18 @@
-import LoginForm from "@/components/LoginForm";
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import loginHero from "@/assets/login-hero.jpg";
 
 const Index = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
+
   return (
     <div className="min-h-screen flex">
       {/* Left Panel - Branding */}
@@ -60,9 +71,22 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Right Panel - Login Form */}
+      {/* Right Panel - Get Started */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 bg-background">
-        <LoginForm />
+        <div className="w-full max-w-md space-y-8 text-center">
+          <div>
+            <h1 className="text-4xl font-bold mb-4">Sales Pipeline CRM</h1>
+            <p className="text-lg text-muted-foreground mb-8">
+              Professional lead management and sales pipeline tracking
+            </p>
+            <button
+              onClick={() => navigate('/auth')}
+              className="px-8 py-3 bg-primary text-white rounded-lg font-semibold hover:bg-primary-glow transition-colors"
+            >
+              Get Started
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -14,16 +14,322 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      appointments: {
+        Row: {
+          appointment_date: string
+          assigned_to: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_completed: boolean | null
+          lead_id: string
+          notes: string | null
+        }
+        Insert: {
+          appointment_date: string
+          assigned_to: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_completed?: boolean | null
+          lead_id: string
+          notes?: string | null
+        }
+        Update: {
+          appointment_date?: string
+          assigned_to?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_completed?: boolean | null
+          lead_id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnels: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnels_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_history: {
+        Row: {
+          changed_by: string
+          created_at: string | null
+          id: string
+          lead_id: string
+          new_assigned_to: string | null
+          new_status: Database["public"]["Enums"]["lead_status"]
+          notes: string | null
+          old_assigned_to: string | null
+          old_status: Database["public"]["Enums"]["lead_status"] | null
+        }
+        Insert: {
+          changed_by: string
+          created_at?: string | null
+          id?: string
+          lead_id: string
+          new_assigned_to?: string | null
+          new_status: Database["public"]["Enums"]["lead_status"]
+          notes?: string | null
+          old_assigned_to?: string | null
+          old_status?: Database["public"]["Enums"]["lead_status"] | null
+        }
+        Update: {
+          changed_by?: string
+          created_at?: string | null
+          id?: string
+          lead_id?: string
+          new_assigned_to?: string | null
+          new_status?: Database["public"]["Enums"]["lead_status"]
+          notes?: string | null
+          old_assigned_to?: string | null
+          old_status?: Database["public"]["Enums"]["lead_status"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_history_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_history_new_assigned_to_fkey"
+            columns: ["new_assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_history_old_assigned_to_fkey"
+            columns: ["old_assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          assigned_to: string | null
+          created_at: string | null
+          created_by: string | null
+          duplicate_of: string | null
+          email: string | null
+          first_name: string
+          funnel_id: string
+          id: string
+          is_duplicate: boolean | null
+          last_name: string
+          notes: string | null
+          phone: string
+          status: Database["public"]["Enums"]["lead_status"]
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duplicate_of?: string | null
+          email?: string | null
+          first_name: string
+          funnel_id: string
+          id?: string
+          is_duplicate?: boolean | null
+          last_name: string
+          notes?: string | null
+          phone: string
+          status?: Database["public"]["Enums"]["lead_status"]
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          duplicate_of?: string | null
+          email?: string | null
+          first_name?: string
+          funnel_id?: string
+          id?: string
+          is_duplicate?: boolean | null
+          last_name?: string
+          notes?: string | null
+          phone?: string
+          status?: Database["public"]["Enums"]["lead_status"]
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_duplicate_of_fkey"
+            columns: ["duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          email: string
+          full_name: string
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          full_name: string
+          id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role:
+        | "admin"
+        | "sales_manager"
+        | "tele_sales"
+        | "customer_service"
+        | "view_only"
+      lead_status:
+        | "status_0"
+        | "status_1"
+        | "status_2"
+        | "status_3"
+        | "status_4"
+        | "status_5"
+        | "status_6"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +456,23 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: [
+        "admin",
+        "sales_manager",
+        "tele_sales",
+        "customer_service",
+        "view_only",
+      ],
+      lead_status: [
+        "status_0",
+        "status_1",
+        "status_2",
+        "status_3",
+        "status_4",
+        "status_5",
+        "status_6",
+      ],
+    },
   },
 } as const
