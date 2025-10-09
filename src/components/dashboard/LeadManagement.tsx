@@ -5,12 +5,13 @@ import { useUserRole } from '@/hooks/useUserRole';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Clock } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Clock, Settings } from 'lucide-react';
 
 const STATUS_LABELS = {
   status_0: 'L0 - Fresh Lead',
@@ -28,10 +29,24 @@ export function LeadManagement() {
   const location = useLocation();
   const { isTeleSales, isAdmin, isSalesManager } = useUserRole();
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [cooldownHours, setCooldownHours] = useState<Record<string, string>>({});
+  const [l1Hours, setL1Hours] = useState<string>('');
+  const [l5Hours, setL5Hours] = useState<string>('');
   
   // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
   const isLeadManagementPage = location.pathname === '/dashboard/lead-management';
+
+  // Fetch cooldown settings
+  const { data: settings } = useQuery({
+    queryKey: ['lead-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('lead_settings')
+        .select('*');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: leads, isLoading } = useQuery({
     queryKey: ['leads', statusFilter, isLeadManagementPage],
@@ -89,9 +104,26 @@ export function LeadManagement() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ leadId, status }: { leadId: string; status: string }) => {
+      const updates: any = { status: status as any };
+      
+      // Auto-apply cooldown for L1 and L5
+      if (status === 'status_1' || status === 'status_5') {
+        const settingKey = status === 'status_1' ? 'l1_cooldown_hours' : 'l5_cooldown_hours';
+        const setting = settings?.find(s => s.setting_key === settingKey);
+        
+        if (setting && setting.setting_value > 0) {
+          const cooldownUntil = new Date();
+          cooldownUntil.setHours(cooldownUntil.getHours() + Number(setting.setting_value));
+          updates.cooldown_until = cooldownUntil.toISOString();
+        }
+      } else {
+        // Clear cooldown for other statuses
+        updates.cooldown_until = null;
+      }
+
       const { error } = await supabase
         .from('leads')
-        .update({ status: status as any })
+        .update(updates)
         .eq('id', leadId);
 
       if (error) throw error;
@@ -102,40 +134,57 @@ export function LeadManagement() {
     },
   });
 
-  const setCooldownMutation = useMutation({
-    mutationFn: async ({ leadId, hours }: { leadId: string; hours: number }) => {
-      if (hours <= 0) {
+  const updateSettingMutation = useMutation({
+    mutationFn: async ({ settingKey, value }: { settingKey: string; value: number }) => {
+      if (value <= 0) {
         throw new Error('Hours must be greater than 0');
       }
 
-      const cooldownUntil = new Date();
-      cooldownUntil.setHours(cooldownUntil.getHours() + hours);
-
+      const { data: { user } } = await supabase.auth.getUser();
+      
       const { error } = await supabase
-        .from('leads')
-        .update({ cooldown_until: cooldownUntil.toISOString() })
-        .eq('id', leadId);
+        .from('lead_settings')
+        .update({ 
+          setting_value: value,
+          updated_by: user?.id,
+          updated_at: new Date().toISOString()
+        })
+        .eq('setting_key', settingKey);
 
       if (error) throw error;
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      setCooldownHours(prev => ({ ...prev, [variables.leadId]: '' }));
-      toast({ title: 'Cooldown set', description: 'Contact cooldown has been set for this lead' });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['lead-settings'] });
+      toast({ title: 'Settings updated', description: 'Cooldown settings have been updated' });
     },
     onError: (error: any) => {
       toast({ 
-        title: 'Failed to set cooldown', 
+        title: 'Failed to update settings', 
         description: error.message, 
         variant: 'destructive' 
       });
     },
   });
 
-  const handleSetCooldown = (leadId: string) => {
-    const hours = parseFloat(cooldownHours[leadId] || '0');
+  const handleUpdateL1Cooldown = () => {
+    const hours = parseFloat(l1Hours);
     if (hours > 0) {
-      setCooldownMutation.mutate({ leadId, hours });
+      updateSettingMutation.mutate({ settingKey: 'l1_cooldown_hours', value: hours });
+      setL1Hours('');
+    } else {
+      toast({
+        title: 'Invalid input',
+        description: 'Hours must be greater than 0',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleUpdateL5Cooldown = () => {
+    const hours = parseFloat(l5Hours);
+    if (hours > 0) {
+      updateSettingMutation.mutate({ settingKey: 'l5_cooldown_hours', value: hours });
+      setL5Hours('');
     } else {
       toast({
         title: 'Invalid input',
@@ -174,25 +223,101 @@ export function LeadManagement() {
     return acc;
   }, {} as Record<string, number>);
 
+  const l1Setting = settings?.find(s => s.setting_key === 'l1_cooldown_hours');
+  const l5Setting = settings?.find(s => s.setting_key === 'l5_cooldown_hours');
+
   return (
-    <Card className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">
-          {isLeadManagementPage ? 'My Assigned Leads' : 'Lead Management'}
-        </h2>
-        
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {Object.entries(STATUS_LABELS).map(([value, label]) => (
-              <SelectItem key={value} value={value}>{label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+    <div className="space-y-6">
+      {/* Cooldown Settings - Only for Admin/Sales Manager */}
+      {(isAdmin || isSalesManager) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Lead Cooldown Settings
+            </CardTitle>
+            <CardDescription>
+              Configure automatic cooldown periods for L1 and L5 lead statuses
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <Label htmlFor="l1-cooldown">L1 - No Answer Cooldown (hours)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="l1-cooldown"
+                    type="number"
+                    min="1"
+                    step="0.5"
+                    placeholder={`Current: ${l1Setting?.setting_value || 0}`}
+                    value={l1Hours}
+                    onChange={(e) => setL1Hours(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleUpdateL1Cooldown();
+                    }}
+                  />
+                  <Button 
+                    onClick={handleUpdateL1Cooldown}
+                    disabled={updateSettingMutation.isPending}
+                  >
+                    Update
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Current: {l1Setting?.setting_value || 0} hours
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <Label htmlFor="l5-cooldown">L5 - Thinking Cooldown (hours)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="l5-cooldown"
+                    type="number"
+                    min="1"
+                    step="0.5"
+                    placeholder={`Current: ${l5Setting?.setting_value || 0}`}
+                    value={l5Hours}
+                    onChange={(e) => setL5Hours(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleUpdateL5Cooldown();
+                    }}
+                  />
+                  <Button 
+                    onClick={handleUpdateL5Cooldown}
+                    disabled={updateSettingMutation.isPending}
+                  >
+                    Update
+                  </Button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Current: {l5Setting?.setting_value || 0} hours
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold">
+            {isLeadManagementPage ? 'My Assigned Leads' : 'Lead Management'}
+          </h2>
+          
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>{label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
       {/* Status Summary */}
       <div className="mb-6 p-4 bg-muted/50 rounded-lg">
@@ -222,7 +347,7 @@ export function LeadManagement() {
               <TableHead>Email</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Cooldown</TableHead>
+              <TableHead>Cooldown Status</TableHead>
               <TableHead>Funnel</TableHead>
               <TableHead>Assigned To</TableHead>
               <TableHead>Actions</TableHead>
@@ -267,31 +392,7 @@ export function LeadManagement() {
                       {getRemainingCooldown(lead.cooldown_until)}
                     </Badge>
                   ) : (
-                    (lead.status === 'status_1' || lead.status === 'status_5') && (isTeleSales || isAdmin || isSalesManager) && (
-                      <div className="flex gap-2 items-center">
-                        <Input
-                          type="number"
-                          min="1"
-                          step="0.5"
-                          placeholder="Hours"
-                          className="w-24"
-                          value={cooldownHours[lead.id] || ''}
-                          onChange={(e) => setCooldownHours(prev => ({ ...prev, [lead.id]: e.target.value }))}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleSetCooldown(lead.id);
-                            }
-                          }}
-                        />
-                        <Button
-                          size="sm"
-                          onClick={() => handleSetCooldown(lead.id)}
-                          disabled={setCooldownMutation.isPending}
-                        >
-                          Set
-                        </Button>
-                      </div>
-                    )
+                    <span className="text-sm text-muted-foreground">-</span>
                   )}
                 </TableCell>
                 <TableCell>{lead.funnel?.name}</TableCell>
@@ -312,6 +413,7 @@ export function LeadManagement() {
           </TableBody>
         </Table>
       </div>
-    </Card>
+      </Card>
+    </div>
   );
 }
