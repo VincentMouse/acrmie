@@ -35,7 +35,6 @@ export function LeadManagement() {
   const location = useLocation();
   const { isTeleSales, isAdmin, isSalesManager } = useUserRole();
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [l1Hours, setL1Hours] = useState<string>('');
   const [l5Hours, setL5Hours] = useState<string>('');
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [pulledLead, setPulledLead] = useState<any>(null);
@@ -237,10 +236,9 @@ export function LeadManagement() {
     mutationFn: async ({ leadId, status }: { leadId: string; status: string }) => {
       const updates: any = { status: status as any };
       
-      // Auto-apply cooldown for L1 and L5
-      if (status === 'status_1' || status === 'status_5') {
-        const settingKey = status === 'status_1' ? 'l1_cooldown_hours' : 'l5_cooldown_hours';
-        const setting = settings?.find(s => s.setting_key === settingKey);
+      // Auto-apply cooldown for L5
+      if (status === 'status_5') {
+        const setting = settings?.find(s => s.setting_key === 'l5_cooldown_hours');
         
         if (setting && setting.setting_value > 0) {
           const cooldownUntil = new Date();
@@ -305,10 +303,9 @@ export function LeadManagement() {
         updates.assigned_at = null;
       }
       
-      // Auto-apply cooldown for L1 and L5
-      if (statusUpdate === 'status_1' || statusUpdate === 'status_5') {
-        const settingKey = statusUpdate === 'status_1' ? 'l1_cooldown_hours' : 'l5_cooldown_hours';
-        const setting = settings?.find(s => s.setting_key === settingKey);
+      // Auto-apply cooldown for L5
+      if (statusUpdate === 'status_5') {
+        const setting = settings?.find(s => s.setting_key === 'l5_cooldown_hours');
         
         if (setting && setting.setting_value > 0) {
           const cooldownUntil = new Date();
@@ -380,20 +377,6 @@ export function LeadManagement() {
       });
     },
   });
-
-  const handleUpdateL1Cooldown = () => {
-    const hours = parseFloat(l1Hours);
-    if (hours > 0) {
-      updateSettingMutation.mutate({ settingKey: 'l1_cooldown_hours', value: hours });
-      setL1Hours('');
-    } else {
-      toast({
-        title: 'Invalid input',
-        description: 'Hours must be greater than 0',
-        variant: 'destructive'
-      });
-    }
-  };
 
   const handleUpdateL5Cooldown = () => {
     const hours = parseFloat(l5Hours);
@@ -796,37 +779,11 @@ export function LeadManagement() {
               Lead Cooldown Settings
             </CardTitle>
             <CardDescription>
-              Configure automatic cooldown periods for L1 and L5 lead statuses
+              Configure automatic cooldown period for L5 lead status
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <Label htmlFor="l1-cooldown">L1 - Call Back Cooldown (hours)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="l1-cooldown"
-                    type="number"
-                    min="1"
-                    value={l1Hours}
-                    onChange={(e) => setL1Hours(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleUpdateL1Cooldown();
-                    }}
-                  />
-                  <Button 
-                    onClick={handleUpdateL1Cooldown}
-                    disabled={updateSettingMutation.isPending}
-                  >
-                    Update
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Current: {l1Setting?.setting_value || 0} hours
-                </p>
-              </div>
-
-              <div className="space-y-3">
+            <div className="space-y-3 max-w-md">
                 <Label htmlFor="l5-cooldown">L5 - Thinking Cooldown (hours)</Label>
                 <div className="flex gap-2">
                   <Input
@@ -846,10 +803,9 @@ export function LeadManagement() {
                     Update
                   </Button>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Current: {l5Setting?.setting_value || 0} hours
-                </p>
-              </div>
+              <p className="text-sm text-muted-foreground">
+                Current: {l5Setting?.setting_value || 0} hours
+              </p>
             </div>
           </CardContent>
       </Card>
