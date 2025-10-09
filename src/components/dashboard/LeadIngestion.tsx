@@ -17,6 +17,7 @@ import { MessengerLeadIngestion } from './MessengerLeadIngestion';
 const leadSchema = z.object({
   phone: z.string().trim().min(10, 'Phone must be at least 10 digits'),
   customerName: z.string().trim().min(1, 'Customer name is required'),
+  email: z.string().email('Invalid email address').optional().or(z.literal('')),
   address: z.string().optional(),
   serviceProduct: z.string().trim().min(1, 'Service/Product is required'),
   campaignName: z.string().trim().min(1, 'Campaign name is required'),
@@ -27,6 +28,7 @@ const leadSchema = z.object({
 const csvLeadSchema = z.object({
   phone: z.string().trim().min(10, 'Phone must be at least 10 digits'),
   customerName: z.string().trim().min(1, 'Customer name is required'),
+  email: z.string().email('Invalid email address').optional().or(z.literal('')),
   address: z.string().optional(),
   serviceProduct: z.string().trim().min(1, 'Service/Product is required'),
   campaignName: z.string().trim().min(1, 'Campaign name is required'),
@@ -42,6 +44,7 @@ export function LeadIngestion() {
   const [formData, setFormData] = useState({
     phone: '',
     customerName: '',
+    email: '',
     address: '',
     serviceProduct: '',
     campaignName: '',
@@ -99,6 +102,7 @@ export function LeadIngestion() {
             first_name: firstName,
             last_name: lastName,
             phone: lead.phone,
+            email: lead.email || null,
             address: lead.address || null,
             service_product: lead.serviceProduct,
             campaign_name: lead.campaignName,
@@ -157,6 +161,7 @@ export function LeadIngestion() {
         first_name: firstName,
         last_name: lastName,
         phone: data.phone,
+        email: data.email || null,
         address: data.address || null,
         service_product: data.serviceProduct,
         campaign_name: data.campaignName,
@@ -191,7 +196,7 @@ export function LeadIngestion() {
       }
       
       setIsOpen(false);
-      setFormData({ phone: '', customerName: '', address: '', serviceProduct: '', campaignName: '', marketerName: '', marketerNotes: '' });
+      setFormData({ phone: '', customerName: '', email: '', address: '', serviceProduct: '', campaignName: '', marketerName: '', marketerNotes: '' });
     },
     onError: (error: any) => {
       toast({ 
@@ -216,6 +221,7 @@ export function LeadIngestion() {
               return csvLeadSchema.parse({
                 phone: row['Phone Number'] || row['phone'],
                 customerName: row['Customer Name'] || row['customerName'],
+                email: row['Email Address'] || row['email'] || '',
                 address: row['Customer Address'] || row['address'] || '',
                 serviceProduct: row['Service/Product'] || row['serviceProduct'],
                 campaignName: row['Campaign Name'] || row['campaignName'],
@@ -333,6 +339,7 @@ export function LeadIngestion() {
                     <ul className="list-disc list-inside space-y-1 ml-2">
                       <li>Phone Number (required)</li>
                       <li>Customer Name (required)</li>
+                      <li>Email Address (optional)</li>
                       <li>Customer Address (optional)</li>
                       <li>Service/Product (required)</li>
                       <li>Campaign Name (required)</li>
@@ -399,11 +406,23 @@ export function LeadIngestion() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="address">Customer Address</Label>
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="customer@example.com"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Home Address</Label>
                     <Input
                       id="address"
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      placeholder="123 Street Name, City"
                     />
                   </div>
 
