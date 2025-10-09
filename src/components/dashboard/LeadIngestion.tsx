@@ -351,6 +351,38 @@ export function LeadIngestion() {
               <TabsContent value="manual">
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
+                    <Label htmlFor="leadGenDate">Lead Generation Date</Label>
+                    <Input
+                      id="leadGenDate"
+                      value={new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })}
+                      readOnly
+                      disabled
+                      className="bg-muted"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="marketerName">Marketer Name *</Label>
+                    <Input
+                      id="marketerName"
+                      value={formData.marketerName}
+                      onChange={(e) => setFormData({ ...formData, marketerName: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="leadClassification">Lead Classification</Label>
+                    <Input
+                      id="leadClassification"
+                      value="New - Unassigned"
+                      readOnly
+                      disabled
+                      className="bg-muted"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number *</Label>
                     <Input
                       id="phone"
@@ -396,16 +428,6 @@ export function LeadIngestion() {
                       id="campaignName"
                       value={formData.campaignName}
                       onChange={(e) => setFormData({ ...formData, campaignName: e.target.value })}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="marketerName">Marketer Name *</Label>
-                    <Input
-                      id="marketerName"
-                      value={formData.marketerName}
-                      onChange={(e) => setFormData({ ...formData, marketerName: e.target.value })}
                       required
                     />
                   </div>
