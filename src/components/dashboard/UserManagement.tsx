@@ -57,29 +57,20 @@ export function UserManagement() {
 
   const createUserMutation = useMutation({
     mutationFn: async (data: any) => {
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-        options: {
-          data: {
-            full_name: data.fullName,
-          }
+      // Call edge function to create user without signing in
+      const { data: result, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: data.email,
+          password: data.password,
+          fullName: data.fullName,
+          role: data.role,
         }
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('User creation failed');
-
-      // Add role
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .insert([{
-          user_id: authData.user.id,
-          role: data.role,
-        }]);
-
-      if (roleError) throw roleError;
+      if (error) throw error;
+      if (!result?.success) throw new Error(result?.error || 'User creation failed');
+      
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
