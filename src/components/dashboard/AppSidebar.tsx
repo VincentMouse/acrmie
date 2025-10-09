@@ -16,7 +16,7 @@ import {
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
-  const { isAdmin, isSalesManager, isTeleSales, isCustomerService } = useUserRole();
+  const { isAdmin, isSalesManager, isTeleSales, isCustomerService, isViewOnly } = useUserRole();
   
   const isCollapsed = state === 'collapsed';
   
@@ -24,9 +24,9 @@ export function AppSidebar() {
     isActive ? 'bg-muted text-primary font-medium' : 'hover:bg-muted/50';
 
   const menuItems = [
-    { title: 'Leads', url: '/dashboard/leads', icon: FileText, show: !isCustomerService },
+    { title: 'Leads', url: '/dashboard/leads', icon: FileText, show: !isCustomerService && !isViewOnly },
     { title: 'Lead Ingestion', url: '/dashboard/ingestion', icon: UserPlus, show: isAdmin || isSalesManager },
-    { title: 'Appointments', url: '/dashboard/appointments', icon: Calendar, show: isTeleSales || isCustomerService || isAdmin || isSalesManager },
+    { title: 'Appointments', url: '/dashboard/appointments', icon: Calendar, show: isTeleSales || isCustomerService || isAdmin || isSalesManager || isViewOnly },
     { title: 'User Management', url: '/dashboard/users', icon: Users, show: isAdmin },
   ];
 

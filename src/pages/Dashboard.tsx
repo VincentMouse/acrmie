@@ -10,7 +10,7 @@ import { AppointmentManagement } from '@/components/dashboard/AppointmentManagem
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
-  const { isCustomerService, isLoading: rolesLoading } = useUserRole();
+  const { isCustomerService, isViewOnly, isLoading: rolesLoading } = useUserRole();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,10 +29,13 @@ export default function Dashboard() {
 
   if (!user) return null;
 
+  // Determine default route based on role
+  const defaultRoute = (isCustomerService || isViewOnly) ? "/dashboard/appointments" : "/dashboard/leads";
+
   return (
     <DashboardLayout>
       <Routes>
-        <Route path="/" element={<Navigate to={isCustomerService ? "/dashboard/appointments" : "/dashboard/leads"} replace />} />
+        <Route path="/" element={<Navigate to={defaultRoute} replace />} />
         <Route path="/leads" element={<LeadManagement />} />
         <Route path="/ingestion" element={<LeadIngestion />} />
         <Route path="/appointments" element={<AppointmentManagement />} />
