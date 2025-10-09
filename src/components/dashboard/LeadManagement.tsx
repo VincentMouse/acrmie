@@ -1094,10 +1094,10 @@ export function LeadManagement() {
                 )}
                 {!isLeadManagementPage && (
                   <TableCell>
-                    {lead.status === 'status_1' && lead.l1_contact_count > 0 ? (
+                    {lead.status === 'status_1' ? (
                       <div className="flex flex-col gap-1">
                         <Badge variant="secondary" className="w-fit">
-                          {lead.l1_contact_count}/6 calls
+                          {lead.l1_contact_count || 0}/6 calls
                         </Badge>
                         <span className="text-xs text-muted-foreground">
                           P1: {lead.l1_period_1_count || 0}/2 | P2: {lead.l1_period_2_count || 0}/2 | P3: {lead.l1_period_3_count || 0}/2
