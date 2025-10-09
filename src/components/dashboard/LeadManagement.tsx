@@ -574,7 +574,7 @@ export function LeadManagement() {
                 {/* Customer Details and Timer - Same Row */}
                 <div className="grid grid-cols-2 gap-4">
                   {/* Customer Details */}
-                  <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+                  <div className="space-y-3 p-4 bg-muted/50 rounded-lg h-32 flex flex-col justify-center">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
                       <span className="font-medium">
@@ -588,17 +588,16 @@ export function LeadManagement() {
                   </div>
 
                   {/* Timer and Service/Product */}
-                  <div className="flex flex-col gap-2 p-4 bg-primary/10 rounded-lg">
-                    {/* Call Duration - Top Half */}
-                    <div className="text-center border-b border-primary/20 pb-2">
-                      <Clock className="h-5 w-5 mx-auto mb-1 text-primary" />
-                      <div className="text-2xl font-bold text-primary">{formatTime(elapsedTime)}</div>
-                      <p className="text-xs text-muted-foreground mt-1">Call Duration</p>
+                  <div className="flex flex-col p-4 bg-primary/10 rounded-lg h-32">
+                    {/* Call Duration - Top 20% */}
+                    <div className="text-center border-b border-primary/20 pb-1 flex-[0.2]">
+                      <Clock className="h-4 w-4 mx-auto text-primary" />
+                      <div className="text-xl font-bold text-primary leading-tight">{formatTime(elapsedTime)}</div>
                     </div>
                     
-                    {/* Service/Product - Bottom Half */}
-                    <div className="text-center pt-2">
-                      <p className="text-xs text-muted-foreground mb-1">Service/Product</p>
+                    {/* Service/Product - Bottom 80% */}
+                    <div className="text-center pt-2 flex-[0.8] flex flex-col justify-center">
+                      <p className="text-xs text-muted-foreground mb-1">Suggested Service/Product</p>
                       <p className="font-medium text-sm">{pulledLead.service_product || '-'}</p>
                     </div>
                   </div>
