@@ -577,13 +577,13 @@ export function LeadManagement() {
                   <div className="space-y-3 p-4 bg-muted/50 rounded-lg h-32 flex flex-col justify-center">
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">
+                      <span className="font-medium text-sm">
                         {pulledLead.first_name} {pulledLead.last_name}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-mono">{pulledLead.phone}</span>
+                      <span className="font-mono text-sm">{pulledLead.phone}</span>
                     </div>
                   </div>
 
@@ -598,7 +598,7 @@ export function LeadManagement() {
                     {/* Service/Product - Bottom 80% */}
                     <div className="text-center pt-2 flex-[0.8] flex flex-col justify-center">
                       <p className="text-xs text-muted-foreground mb-1">Suggested Service/Product</p>
-                      <p className="font-medium text-sm">{pulledLead.service_product || '-'}</p>
+                      <p className="font-medium text-xs">{pulledLead.service_product || '-'}</p>
                     </div>
                   </div>
                 </div>
