@@ -641,10 +641,10 @@ export function LeadManagement() {
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Phone</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Cooldown Status</TableHead>
-              <TableHead>Funnel</TableHead>
-              <TableHead>Assigned To</TableHead>
+              {!isLeadManagementPage && <TableHead>Status</TableHead>}
+              {!isLeadManagementPage && <TableHead>Cooldown Status</TableHead>}
+              {!isLeadManagementPage && <TableHead>Funnel</TableHead>}
+              {!isLeadManagementPage && <TableHead>Assigned To</TableHead>}
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -659,39 +659,43 @@ export function LeadManagement() {
                 </TableCell>
                 <TableCell>{lead.email || '-'}</TableCell>
                 <TableCell>{lead.phone}</TableCell>
-                <TableCell>
-                  {(isTeleSales || isAdmin || isSalesManager) ? (
-                    <Select
-                      value={lead.status}
-                      onValueChange={(value) => 
-                        updateStatusMutation.mutate({ leadId: lead.id, status: value })
-                      }
-                    >
-                      <SelectTrigger className="w-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>{label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge>{STATUS_LABELS[lead.status as keyof typeof STATUS_LABELS]}</Badge>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {getRemainingCooldown(lead.cooldown_until) ? (
-                    <Badge variant="secondary" className="gap-1">
-                      <Clock className="h-3 w-3" />
-                      {getRemainingCooldown(lead.cooldown_until)}
-                    </Badge>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell>{lead.funnel?.name}</TableCell>
-                <TableCell>{lead.assigned?.full_name || 'Unassigned'}</TableCell>
+                {!isLeadManagementPage && (
+                  <TableCell>
+                    {(isTeleSales || isAdmin || isSalesManager) ? (
+                      <Select
+                        value={lead.status}
+                        onValueChange={(value) => 
+                          updateStatusMutation.mutate({ leadId: lead.id, status: value })
+                        }
+                      >
+                        <SelectTrigger className="w-40">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>{label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge>{STATUS_LABELS[lead.status as keyof typeof STATUS_LABELS]}</Badge>
+                    )}
+                  </TableCell>
+                )}
+                {!isLeadManagementPage && (
+                  <TableCell>
+                    {getRemainingCooldown(lead.cooldown_until) ? (
+                      <Badge variant="secondary" className="gap-1">
+                        <Clock className="h-3 w-3" />
+                        {getRemainingCooldown(lead.cooldown_until)}
+                      </Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                )}
+                {!isLeadManagementPage && <TableCell>{lead.funnel?.name}</TableCell>}
+                {!isLeadManagementPage && <TableCell>{lead.assigned?.full_name || 'Unassigned'}</TableCell>}
                 <TableCell>
                   {!lead.assigned_to && isTeleSales && lead.status === 'status_0' && (
                     <Button
