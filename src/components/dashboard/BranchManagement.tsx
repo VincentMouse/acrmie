@@ -362,7 +362,7 @@ export function BranchManagement() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Types</SelectItem>
-                      {Array.from(new Set(servicesProducts?.map(item => item.type) || [])).map(type => (
+                      {Array.from(new Set(servicesProducts?.map(item => item.type).filter(type => type !== '') || [])).map(type => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
                       ))}
                     </SelectContent>
