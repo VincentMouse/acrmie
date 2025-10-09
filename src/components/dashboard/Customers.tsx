@@ -73,6 +73,9 @@ export function Customers() {
     },
   });
 
+  const [editingAddress, setEditingAddress] = useState<string | null>(null);
+  const [addressValue, setAddressValue] = useState('');
+
   const updateEmailMutation = useMutation({
     mutationFn: async ({ customerId, email }: { customerId: string; email: string }) => {
       const { error } = await supabase
@@ -101,9 +104,43 @@ export function Customers() {
     },
   });
 
+  const updateAddressMutation = useMutation({
+    mutationFn: async ({ customerId, address }: { customerId: string; address: string }) => {
+      const { error } = await supabase
+        .from('customers')
+        .update({ address })
+        .eq('id', customerId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast({
+        title: 'Address updated',
+        description: 'Customer address has been updated successfully.',
+      });
+      setEditingAddress(null);
+      setAddressValue('');
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: 'Failed to update address. Please try again.',
+        variant: 'destructive',
+      });
+      console.error('Error updating address:', error);
+    },
+  });
+
   const handleEmailSave = (customerId: string) => {
     if (emailValue.trim()) {
       updateEmailMutation.mutate({ customerId, email: emailValue.trim() });
+    }
+  };
+
+  const handleAddressSave = (customerId: string) => {
+    if (addressValue.trim()) {
+      updateAddressMutation.mutate({ customerId, address: addressValue.trim() });
     }
   };
 
@@ -173,37 +210,70 @@ export function Customers() {
 
                 <CollapsibleContent>
                   <div className="border-t p-4 space-y-4">
-                    <div className="bg-muted/30 p-3 rounded-lg">
-                      <Label htmlFor={`email-${customer.id}`} className="text-sm font-medium mb-2 block">
-                        {customer.email ? 'Email Address' : 'Add Email Address'}
-                      </Label>
-                      {customer.email ? (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Mail className="h-4 w-4" />
-                          {customer.email}
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <Input
-                            id={`email-${customer.id}`}
-                            type="email"
-                            placeholder="Enter email address"
-                            value={editingEmail === customer.id ? emailValue : ''}
-                            onChange={(e) => {
-                              setEditingEmail(customer.id);
-                              setEmailValue(e.target.value);
-                            }}
-                            className="flex-1"
-                          />
-                          <button
-                            onClick={() => handleEmailSave(customer.id)}
-                            disabled={!emailValue.trim() || updateEmailMutation.isPending}
-                            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                          >
-                            Save
-                          </button>
-                        </div>
-                      )}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-muted/30 p-3 rounded-lg">
+                        <Label htmlFor={`email-${customer.id}`} className="text-sm font-medium mb-2 block">
+                          {customer.email ? 'Email Address' : 'Add Email Address'}
+                        </Label>
+                        {customer.email ? (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Mail className="h-4 w-4" />
+                            {customer.email}
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Input
+                              id={`email-${customer.id}`}
+                              type="email"
+                              placeholder="Enter email address"
+                              value={editingEmail === customer.id ? emailValue : ''}
+                              onChange={(e) => {
+                                setEditingEmail(customer.id);
+                                setEmailValue(e.target.value);
+                              }}
+                              className="flex-1"
+                            />
+                            <button
+                              onClick={() => handleEmailSave(customer.id)}
+                              disabled={!emailValue.trim() || updateEmailMutation.isPending}
+                              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="bg-muted/30 p-3 rounded-lg">
+                        <Label htmlFor={`address-${customer.id}`} className="text-sm font-medium mb-2 block">
+                          {customer.address ? 'Home Address' : 'Add Home Address'}
+                        </Label>
+                        {customer.address ? (
+                          <div className="text-sm text-muted-foreground">
+                            {customer.address}
+                          </div>
+                        ) : (
+                          <div className="flex gap-2">
+                            <Input
+                              id={`address-${customer.id}`}
+                              placeholder="Enter home address"
+                              value={editingAddress === customer.id ? addressValue : ''}
+                              onChange={(e) => {
+                                setEditingAddress(customer.id);
+                                setAddressValue(e.target.value);
+                              }}
+                              className="flex-1"
+                            />
+                            <button
+                              onClick={() => handleAddressSave(customer.id)}
+                              disabled={!addressValue.trim() || updateAddressMutation.isPending}
+                              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     
                     {customerLeads.length > 0 ? (
