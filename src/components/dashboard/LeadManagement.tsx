@@ -25,16 +25,6 @@ const STATUS_LABELS = {
   status_6: 'L6 - Appointment Set',
 };
 
-const STATUS_CODES = {
-  status_0: 'L0',
-  status_1: 'L1',
-  status_2: 'L2',
-  status_3: 'L3',
-  status_4: 'L4',
-  status_5: 'L5',
-  status_6: 'L6',
-};
-
 export function LeadManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -712,7 +702,7 @@ export function LeadManagement() {
                           updateStatusMutation.mutate({ leadId: lead.id, status: value })
                         }
                       >
-                        <SelectTrigger className="w-40">
+                        <SelectTrigger className="w-48">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -722,7 +712,7 @@ export function LeadManagement() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Badge>{STATUS_CODES[lead.status as keyof typeof STATUS_CODES]}</Badge>
+                      <Badge>{STATUS_LABELS[lead.status as keyof typeof STATUS_LABELS]}</Badge>
                     )}
                   </TableCell>
                 )}
