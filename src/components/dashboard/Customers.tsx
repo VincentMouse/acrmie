@@ -146,39 +146,31 @@ export function Customers() {
             >
               <Card className="overflow-hidden">
                 <CollapsibleTrigger className="w-full">
-                  <div className="flex items-center justify-between px-4 py-2 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      {isExpanded ? (
-                        <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      )}
-                      <div className="text-left flex-1 min-w-0">
-                        <div className="flex items-center gap-4">
-                          <h3 className="font-semibold text-sm">{customer.name}</h3>
-                          <p className="text-sm text-muted-foreground">{customer.phone}</p>
-                          {customer.email ? (
-                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
-                              {customer.email}
-                            </p>
-                          ) : (
-                            <span className="text-xs text-muted-foreground italic">No email</span>
-                          )}
-                        </div>
-                      </div>
+                  <div className="flex items-center px-4 py-2 hover:bg-muted/50 transition-colors">
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 mr-3" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mr-3" />
+                    )}
+                    <div className="flex items-center gap-8 flex-1">
+                      <h3 className="font-semibold text-sm w-48">{customer.name}</h3>
+                      <p className="text-sm text-muted-foreground w-32">{customer.phone}</p>
                     </div>
-                    <Badge variant="secondary" className="flex-shrink-0">{customerLeads.length} Leads</Badge>
                   </div>
                 </CollapsibleTrigger>
 
                 <CollapsibleContent>
                   <div className="border-t p-4 space-y-4">
-                    {!customer.email && (
-                      <div className="bg-muted/30 p-3 rounded-lg">
-                        <Label htmlFor={`email-${customer.id}`} className="text-sm font-medium mb-2 block">
-                          Add Email Address
-                        </Label>
+                    <div className="bg-muted/30 p-3 rounded-lg">
+                      <Label htmlFor={`email-${customer.id}`} className="text-sm font-medium mb-2 block">
+                        {customer.email ? 'Email Address' : 'Add Email Address'}
+                      </Label>
+                      {customer.email ? (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Mail className="h-4 w-4" />
+                          {customer.email}
+                        </div>
+                      ) : (
                         <div className="flex gap-2">
                           <Input
                             id={`email-${customer.id}`}
@@ -199,8 +191,8 @@ export function Customers() {
                             Save
                           </button>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                     
                     {customerLeads.length > 0 ? (
                       <Table>
