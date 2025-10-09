@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Upload, Plus } from 'lucide-react';
 import Papa from 'papaparse';
 import { z } from 'zod';
+import { MessengerLeadIngestion } from './MessengerLeadIngestion';
 
 const leadSchema = z.object({
   firstName: z.string().trim().min(1, 'First name is required'),
@@ -257,14 +258,15 @@ export function LeadIngestion() {
   };
 
   return (
-    <Card className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-2xl font-bold">New Lead Ingestion</h2>
-          <p className="text-muted-foreground mt-1">
-            Add cold leads manually or upload via CSV spreadsheet. Duplicates will be automatically flagged.
-          </p>
-        </div>
+    <div className="space-y-6">
+      <Card className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-2xl font-bold">New Lead Ingestion</h2>
+            <p className="text-muted-foreground mt-1">
+              Add cold leads manually or upload via CSV spreadsheet. Duplicates will be automatically flagged.
+            </p>
+          </div>
         
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
@@ -411,5 +413,8 @@ export function LeadIngestion() {
         </Dialog>
       </div>
     </Card>
+
+    <MessengerLeadIngestion />
+    </div>
   );
 }
