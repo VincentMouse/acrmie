@@ -263,9 +263,10 @@ export function LeadIngestion() {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-2xl font-bold">New Lead Ingestion</h2>
-            <p className="text-muted-foreground mt-1">
-              Add cold leads manually or upload via CSV spreadsheet. Duplicates will be automatically flagged.
-            </p>
+            <div className="text-muted-foreground mt-1">
+              <p>Add cold leads manually or upload via CSV spreadsheet.</p>
+              <p>Duplicates will be automatically flagged.</p>
+            </div>
           </div>
         
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
