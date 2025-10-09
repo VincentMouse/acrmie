@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -11,7 +11,9 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Clock, Settings } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Clock, Settings, Phone, User } from 'lucide-react';
 
 const STATUS_LABELS = {
   status_0: 'L0 - Fresh Lead',
@@ -31,6 +33,12 @@ export function LeadManagement() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [l1Hours, setL1Hours] = useState<string>('');
   const [l5Hours, setL5Hours] = useState<string>('');
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
+  const [pulledLead, setPulledLead] = useState<any>(null);
+  const [callOutcome, setCallOutcome] = useState<string>('');
+  const [callNotes, setCallNotes] = useState<string>('');
+  const [statusUpdate, setStatusUpdate] = useState<string>('');
+  const [elapsedTime, setElapsedTime] = useState(0);
   
   // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
   const isLeadManagementPage = location.pathname === '/dashboard/lead-management';
@@ -112,7 +120,7 @@ export function LeadManagement() {
       // Try to get L0 (Fresh Lead) first
       let { data: availableLead } = await supabase
         .from('leads')
-        .select('id')
+        .select('*')
         .eq('status', 'status_0')
         .is('assigned_to', null)
         .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
@@ -123,7 +131,7 @@ export function LeadManagement() {
       if (!availableLead) {
         const result = await supabase
           .from('leads')
-          .select('id')
+          .select('*')
           .eq('status', 'status_1')
           .is('assigned_to', null)
           .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
@@ -136,7 +144,7 @@ export function LeadManagement() {
       if (!availableLead) {
         const result = await supabase
           .from('leads')
-          .select('id')
+          .select('*')
           .eq('status', 'status_5')
           .is('assigned_to', null)
           .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
@@ -159,12 +167,11 @@ export function LeadManagement() {
 
       return availableLead;
     },
-    onSuccess: () => {
+    onSuccess: (lead) => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast({ 
-        title: 'Lead assigned', 
-        description: 'A new lead has been assigned to you' 
-      });
+      setPulledLead(lead);
+      setIsLeadModalOpen(true);
+      setElapsedTime(0);
     },
     onError: (error: any) => {
       toast({ 
@@ -204,6 +211,56 @@ export function LeadManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       toast({ title: 'Status updated', description: 'Lead status has been updated' });
+    },
+  });
+
+  const submitCallMutation = useMutation({
+    mutationFn: async () => {
+      if (!pulledLead) throw new Error('No lead selected');
+      if (!statusUpdate) throw new Error('Status update is required');
+
+      const updates: any = { 
+        status: statusUpdate as any,
+        notes: callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`
+      };
+      
+      // Auto-apply cooldown for L1 and L5
+      if (statusUpdate === 'status_1' || statusUpdate === 'status_5') {
+        const settingKey = statusUpdate === 'status_1' ? 'l1_cooldown_hours' : 'l5_cooldown_hours';
+        const setting = settings?.find(s => s.setting_key === settingKey);
+        
+        if (setting && setting.setting_value > 0) {
+          const cooldownUntil = new Date();
+          cooldownUntil.setHours(cooldownUntil.getHours() + Number(setting.setting_value));
+          updates.cooldown_until = cooldownUntil.toISOString();
+        }
+      } else {
+        updates.cooldown_until = null;
+      }
+
+      const { error } = await supabase
+        .from('leads')
+        .update(updates)
+        .eq('id', pulledLead.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      setIsLeadModalOpen(false);
+      setPulledLead(null);
+      setCallOutcome('');
+      setCallNotes('');
+      setStatusUpdate('');
+      setElapsedTime(0);
+      toast({ title: 'Call completed', description: 'Lead has been updated successfully' });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Failed to update lead', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
     },
   });
 
@@ -285,6 +342,39 @@ export function LeadManagement() {
     return `${minutes}m`;
   };
 
+  // Timer for lead call tracking
+  useEffect(() => {
+    if (!isLeadModalOpen) return;
+
+    const interval = setInterval(() => {
+      setElapsedTime(prev => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isLeadModalOpen]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const CALL_OUTCOMES = [
+    'No Answer',
+    'Wrong Number',
+    'Not Interested',
+    'Interested - Callback Later',
+    'Interested - Thinking',
+    'Price Too High',
+    'Already Booked Elsewhere',
+    'Request Call Back',
+    'Drop Call',
+    'Language Barrier',
+    'Session Already Booked'
+  ];
+
+  const AVAILABLE_STATUSES = Object.entries(STATUS_LABELS).filter(([key]) => key !== 'status_0');
+
   if (isLoading) {
     return <div className="text-center py-8">Loading leads...</div>;
   }
@@ -301,6 +391,116 @@ export function LeadManagement() {
 
   return (
     <div className="space-y-6">
+      {/* Lead Call Modal */}
+      <Dialog open={isLeadModalOpen} onOpenChange={setIsLeadModalOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5" />
+              Lead Call Session
+            </DialogTitle>
+            <DialogDescription>
+              Complete the call and update the lead status
+            </DialogDescription>
+          </DialogHeader>
+          
+          {pulledLead && (
+            <div className="space-y-6">
+              {/* Timer */}
+              <div className="flex justify-center">
+                <div className="text-center p-4 bg-primary/10 rounded-lg">
+                  <Clock className="h-6 w-6 mx-auto mb-2 text-primary" />
+                  <div className="text-3xl font-bold text-primary">{formatTime(elapsedTime)}</div>
+                  <p className="text-sm text-muted-foreground mt-1">Call Duration</p>
+                </div>
+              </div>
+
+              {/* Lead Details */}
+              <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">
+                    {pulledLead.first_name} {pulledLead.last_name}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-mono">{pulledLead.phone}</span>
+                </div>
+              </div>
+
+              {/* Call Form */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="call-outcome">Call Outcome *</Label>
+                  <Select value={callOutcome} onValueChange={setCallOutcome}>
+                    <SelectTrigger id="call-outcome">
+                      <SelectValue placeholder="Select outcome" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CALL_OUTCOMES.map((outcome) => (
+                        <SelectItem key={outcome} value={outcome}>
+                          {outcome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="call-notes">Call Notes</Label>
+                  <Textarea
+                    id="call-notes"
+                    placeholder="Enter any additional notes about the call..."
+                    value={callNotes}
+                    onChange={(e) => setCallNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="status-update">Status Update *</Label>
+                  <Select value={statusUpdate} onValueChange={setStatusUpdate}>
+                    <SelectTrigger id="status-update">
+                      <SelectValue placeholder="Select new status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AVAILABLE_STATUSES.map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsLeadModalOpen(false);
+                setPulledLead(null);
+                setCallOutcome('');
+                setCallNotes('');
+                setStatusUpdate('');
+                setElapsedTime(0);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => submitCallMutation.mutate()}
+              disabled={!callOutcome || !statusUpdate || submitCallMutation.isPending}
+            >
+              Submit Call
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Cooldown Settings - Only for Admin/Sales Manager */}
       {(isAdmin || isSalesManager) && (
         <Card>
