@@ -430,7 +430,7 @@ export function LeadManagement() {
   // Auto-set call outcome when L2 is selected
   useEffect(() => {
     if (statusUpdate === 'status_2') {
-      setCallOutcome('call_rescheduled');
+      setCallOutcome('Call Rescheduled');
       // If user has 5+ self-managed L2 leads, force assign to team
       if (selfManagedL2Count >= 5) {
         setAssignTo('team');
@@ -531,6 +531,7 @@ export function LeadManagement() {
     'Price Too High',
     'Already Booked Elsewhere',
     'Request Call Back',
+    'Call Rescheduled',
     'Drop Call',
     'Language Barrier',
     'Session Already Booked'
