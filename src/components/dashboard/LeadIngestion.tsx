@@ -339,11 +339,6 @@ export function LeadIngestion() {
                       <li>Marketer Name (required)</li>
                       <li>Marketer Notes (optional)</li>
                     </ul>
-                    <p className="mt-3 text-xs">
-                      • Lead ID will be auto-generated<br />
-                      • Lead Generation Date will be set to current Vietnam time<br />
-                      • Status will be auto-assigned to "New - Unassigned"
-                    </p>
                   </div>
                 </div>
               </TabsContent>
