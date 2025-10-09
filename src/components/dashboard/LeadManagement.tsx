@@ -546,8 +546,8 @@ export function LeadManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Cooldown Settings - Only for Admin/Sales Manager */}
-      {(isAdmin || isSalesManager) && (
+      {/* Cooldown Settings - Only for Admin/Sales Manager on Leads page */}
+      {(isAdmin || isSalesManager) && !isLeadManagementPage && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
