@@ -785,8 +785,6 @@ export function LeadManagement() {
                     id="l1-cooldown"
                     type="number"
                     min="1"
-                    step="0.5"
-                    placeholder={`Current: ${l1Setting?.setting_value || 0}`}
                     value={l1Hours}
                     onChange={(e) => setL1Hours(e.target.value)}
                     onKeyDown={(e) => {
@@ -812,8 +810,6 @@ export function LeadManagement() {
                     id="l5-cooldown"
                     type="number"
                     min="1"
-                    step="0.5"
-                    placeholder={`Current: ${l5Setting?.setting_value || 0}`}
                     value={l5Hours}
                     onChange={(e) => setL5Hours(e.target.value)}
                     onKeyDown={(e) => {
