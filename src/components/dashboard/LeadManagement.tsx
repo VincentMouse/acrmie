@@ -916,7 +916,7 @@ export function LeadManagement() {
               <TableHead>Phone</TableHead>
               <TableHead>Service/Product</TableHead>
               {!isLeadManagementPage && <TableHead>Status</TableHead>}
-              {!isLeadManagementPage && <TableHead>Cooldown Status</TableHead>}
+              {!isLeadManagementPage && <TableHead>Cooldown</TableHead>}
               {!isLeadManagementPage && <TableHead>Assigned To</TableHead>}
               {isLeadManagementPage && <TableHead>Time Remaining</TableHead>}
               {isLeadManagementPage && <TableHead>Actions</TableHead>}
