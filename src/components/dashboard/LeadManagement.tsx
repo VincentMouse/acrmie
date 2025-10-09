@@ -1005,7 +1005,12 @@ export function LeadManagement() {
       {isLeadManagementPage && isTeleSales && (
         <Card className="p-6">
           <div className="mb-6">
-            <h2 className="text-2xl font-bold">My Follow-Up Leads</h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold">My Follow-Up Leads</h2>
+              <Badge variant={selfManagedL2Count >= 5 ? "destructive" : "secondary"}>
+                {selfManagedL2Count}/5
+              </Badge>
+            </div>
             <p className="text-sm text-muted-foreground mt-1">Leads scheduled for callback (L2 - Call Rescheduled)</p>
           </div>
 
