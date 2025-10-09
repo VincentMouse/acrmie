@@ -103,6 +103,13 @@ export function LeadManagement() {
     return <div className="text-center py-8">Loading leads...</div>;
   }
 
+  // Calculate status summary
+  const statusSummary = leads?.reduce((acc, lead) => {
+    const status = lead.status as keyof typeof STATUS_LABELS;
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
   return (
     <Card className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -121,6 +128,26 @@ export function LeadManagement() {
             ))}
           </SelectContent>
         </Select>
+      </div>
+
+      {/* Status Summary */}
+      <div className="mb-6 p-4 bg-muted/50 rounded-lg">
+        <h3 className="text-lg font-semibold mb-3">Lead Status Summary</h3>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {Object.entries(STATUS_LABELS).map(([statusKey, statusLabel]) => {
+            const count = statusSummary?.[statusKey] || 0;
+            return (
+              <div key={statusKey} className="flex flex-col p-3 bg-background rounded-md border">
+                <span className="text-2xl font-bold text-primary">{count}</span>
+                <span className="text-sm text-muted-foreground">{statusLabel}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="mt-3 pt-3 border-t">
+          <span className="text-sm font-medium">Total Leads: </span>
+          <span className="text-lg font-bold text-primary">{leads?.length || 0}</span>
+        </div>
       </div>
 
       <div className="rounded-md border">
