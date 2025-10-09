@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Clock, Settings, Phone, User } from 'lucide-react';
+import { Clock, Settings, Phone, User, Timer } from 'lucide-react';
 
 const STATUS_LABELS = {
   status_0: 'L0 - Fresh Lead',
@@ -118,7 +118,10 @@ export function LeadManagement() {
 
       const { error } = await supabase
         .from('leads')
-        .update({ assigned_to: user.id })
+        .update({ 
+          assigned_to: user.id,
+          assigned_at: new Date().toISOString()
+        })
         .eq('id', leadId);
 
       if (error) throw error;
@@ -197,7 +200,10 @@ export function LeadManagement() {
       // Assign the lead to the current user
       const { error } = await supabase
         .from('leads')
-        .update({ assigned_to: user.id })
+        .update({ 
+          assigned_to: user.id,
+          assigned_at: new Date().toISOString()
+        })
         .eq('id', availableLead.id);
 
       if (error) throw error;
@@ -258,7 +264,9 @@ export function LeadManagement() {
         status: statusUpdate as any,
         notes: callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`,
         // Only unassign if NOT L2 (Call Rescheduled)
-        assigned_to: statusUpdate === 'status_2' ? pulledLead.assigned_to : null
+        assigned_to: statusUpdate === 'status_2' ? pulledLead.assigned_to : null,
+        // Clear assigned_at when unassigning
+        assigned_at: statusUpdate === 'status_2' ? pulledLead.assigned_at : null
       };
       
       // Auto-apply cooldown for L1 and L5
@@ -390,10 +398,77 @@ export function LeadManagement() {
     return () => clearInterval(interval);
   }, [isLeadModalOpen]);
 
+  // Auto-return expired leads to pool
+  useEffect(() => {
+    if (!isLeadManagementPage || !isTeleSales || isLeadModalOpen) return;
+
+    const checkExpiredLeads = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const thirtyMinutesAgo = new Date();
+      thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
+
+      // Find leads assigned to current user that have expired
+      const { data: expiredLeads } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('assigned_to', user.id)
+        .lt('assigned_at', thirtyMinutesAgo.toISOString())
+        .not('assigned_at', 'is', null);
+
+      if (expiredLeads && expiredLeads.length > 0) {
+        // Return expired leads to pool
+        for (const lead of expiredLeads) {
+          await supabase
+            .from('leads')
+            .update({ 
+              assigned_to: null,
+              assigned_at: null,
+              status: 'status_0'
+            })
+            .eq('id', lead.id);
+        }
+
+        queryClient.invalidateQueries({ queryKey: ['leads'] });
+        toast({
+          title: 'Lead returned to pool',
+          description: '30 minute time limit reached',
+          variant: 'destructive'
+        });
+      }
+    };
+
+    // Check immediately
+    checkExpiredLeads();
+
+    // Then check every 10 seconds
+    const interval = setInterval(checkExpiredLeads, 10000);
+
+    return () => clearInterval(interval);
+  }, [isLeadManagementPage, isTeleSales, isLeadModalOpen, queryClient, toast]);
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getAssignmentTimeRemaining = (assignedAt: string | null) => {
+    if (!assignedAt) return null;
+    
+    const assigned = new Date(assignedAt);
+    const now = new Date();
+    const thirtyMinutes = 30 * 60 * 1000;
+    const elapsed = now.getTime() - assigned.getTime();
+    const remaining = thirtyMinutes - elapsed;
+    
+    if (remaining <= 0) return null;
+    
+    const mins = Math.floor(remaining / (60 * 1000));
+    const secs = Math.floor((remaining % (60 * 1000)) / 1000);
+    
+    return { mins, secs, total: remaining };
   };
 
   const CALL_OUTCOMES = [
@@ -680,6 +755,7 @@ export function LeadManagement() {
               {!isLeadManagementPage && <TableHead>Status</TableHead>}
               {!isLeadManagementPage && <TableHead>Cooldown Status</TableHead>}
               {!isLeadManagementPage && <TableHead>Assigned To</TableHead>}
+              {isLeadManagementPage && <TableHead>Time Remaining</TableHead>}
               {isLeadManagementPage && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
@@ -729,6 +805,27 @@ export function LeadManagement() {
                   </TableCell>
                 )}
                 {!isLeadManagementPage && <TableCell>{lead.assigned?.full_name || 'Unassigned'}</TableCell>}
+                {isLeadManagementPage && (
+                  <TableCell>
+                    {lead.assigned_at && (() => {
+                      const timeRemaining = getAssignmentTimeRemaining(lead.assigned_at);
+                      if (!timeRemaining) {
+                        return <span className="text-destructive text-sm font-medium">Expired</span>;
+                      }
+                      const { mins, secs } = timeRemaining;
+                      const isUrgent = mins < 5;
+                      return (
+                        <Badge 
+                          variant={isUrgent ? "destructive" : "secondary"} 
+                          className="gap-1 font-mono"
+                        >
+                          <Timer className="h-3 w-3" />
+                          {mins}:{secs.toString().padStart(2, '0')}
+                        </Badge>
+                      );
+                    })()}
+                  </TableCell>
+                )}
                 {isLeadManagementPage && (
                   <TableCell>
                     {!lead.assigned_to && isTeleSales && lead.status === 'status_0' && (

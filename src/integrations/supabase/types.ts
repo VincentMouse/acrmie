@@ -226,6 +226,7 @@ export type Database = {
       leads: {
         Row: {
           address: string | null
+          assigned_at: string | null
           assigned_to: string | null
           campaign_name: string | null
           cooldown_until: string | null
@@ -247,6 +248,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          assigned_at?: string | null
           assigned_to?: string | null
           campaign_name?: string | null
           cooldown_until?: string | null
@@ -268,6 +270,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          assigned_at?: string | null
           assigned_to?: string | null
           campaign_name?: string | null
           cooldown_until?: string | null
