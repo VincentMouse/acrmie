@@ -677,12 +677,10 @@ export function LeadManagement() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Phone</TableHead>
-              <TableHead>Email</TableHead>
               {!isLeadManagementPage && <TableHead>Status</TableHead>}
               {!isLeadManagementPage && <TableHead>Cooldown Status</TableHead>}
-              {!isLeadManagementPage && <TableHead>Funnel</TableHead>}
               {!isLeadManagementPage && <TableHead>Assigned To</TableHead>}
-              <TableHead>Actions</TableHead>
+              {isLeadManagementPage && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -695,7 +693,6 @@ export function LeadManagement() {
                   )}
                 </TableCell>
                 <TableCell>{lead.phone}</TableCell>
-                <TableCell>{lead.email || '-'}</TableCell>
                 {!isLeadManagementPage && (
                   <TableCell>
                     {(isTeleSales || isAdmin || isSalesManager) ? (
@@ -731,33 +728,34 @@ export function LeadManagement() {
                     )}
                   </TableCell>
                 )}
-                {!isLeadManagementPage && <TableCell>{lead.funnel?.name}</TableCell>}
                 {!isLeadManagementPage && <TableCell>{lead.assigned?.full_name || 'Unassigned'}</TableCell>}
-                <TableCell>
-                  {!lead.assigned_to && isTeleSales && lead.status === 'status_0' && (
-                    <Button
-                      size="sm"
-                      onClick={() => assignToMeMutation.mutate(lead.id)}
-                      disabled={assignToMeMutation.isPending}
-                    >
-                      Assign to Me
-                    </Button>
-                  )}
-                  {lead.assigned_to && isTeleSales && isLeadManagementPage && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setPulledLead(lead);
-                        setIsLeadModalOpen(true);
-                        setElapsedTime(0);
-                      }}
-                    >
-                      <Phone className="h-4 w-4 mr-2" />
-                      Call
-                    </Button>
-                  )}
-                </TableCell>
+                {isLeadManagementPage && (
+                  <TableCell>
+                    {!lead.assigned_to && isTeleSales && lead.status === 'status_0' && (
+                      <Button
+                        size="sm"
+                        onClick={() => assignToMeMutation.mutate(lead.id)}
+                        disabled={assignToMeMutation.isPending}
+                      >
+                        Assign to Me
+                      </Button>
+                    )}
+                    {lead.assigned_to && isTeleSales && isLeadManagementPage && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setPulledLead(lead);
+                          setIsLeadModalOpen(true);
+                          setElapsedTime(0);
+                        }}
+                      >
+                        <Phone className="h-4 w-4 mr-2" />
+                        Call
+                      </Button>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
