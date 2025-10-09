@@ -24,7 +24,7 @@ export function AppSidebar() {
     isActive ? 'bg-muted text-primary font-medium' : 'hover:bg-muted/50';
 
   const menuItems = [
-    { title: 'Leads', url: '/dashboard/leads', icon: FileText, show: true },
+    { title: 'Leads', url: '/dashboard/leads', icon: FileText, show: !isCustomerService },
     { title: 'Lead Ingestion', url: '/dashboard/ingestion', icon: UserPlus, show: isAdmin || isSalesManager },
     { title: 'Appointments', url: '/dashboard/appointments', icon: Calendar, show: isTeleSales || isCustomerService || isAdmin || isSalesManager },
     { title: 'User Management', url: '/dashboard/users', icon: Users, show: isAdmin },

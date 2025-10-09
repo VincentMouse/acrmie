@@ -10,7 +10,7 @@ import { AppointmentManagement } from '@/components/dashboard/AppointmentManagem
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
-  const { isLoading: rolesLoading } = useUserRole();
+  const { isCustomerService, isLoading: rolesLoading } = useUserRole();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function Dashboard() {
   return (
     <DashboardLayout>
       <Routes>
-        <Route path="/" element={<Navigate to="/dashboard/leads" replace />} />
+        <Route path="/" element={<Navigate to={isCustomerService ? "/dashboard/appointments" : "/dashboard/leads"} replace />} />
         <Route path="/leads" element={<LeadManagement />} />
         <Route path="/ingestion" element={<LeadIngestion />} />
         <Route path="/appointments" element={<AppointmentManagement />} />
