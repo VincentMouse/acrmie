@@ -6,16 +6,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronRight, Mail, Check, X } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { ChevronDown, ChevronRight, Mail } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 type Customer = {
   id: string;
   name: string;
   phone: string;
-  address: string | null;
   email: string | null;
+  address: string | null;
   created_at: string;
 };
 
@@ -85,41 +85,26 @@ export function Customers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       toast({
-        title: 'Success',
-        description: 'Email updated successfully',
+        title: 'Email updated',
+        description: 'Customer email has been updated successfully.',
       });
       setEditingEmail(null);
       setEmailValue('');
     },
-    onError: () => {
+    onError: (error) => {
       toast({
         title: 'Error',
-        description: 'Failed to update email',
+        description: 'Failed to update email. Please try again.',
         variant: 'destructive',
       });
+      console.error('Error updating email:', error);
     },
   });
 
-  const handleEditEmail = (customerId: string, currentEmail: string | null) => {
-    setEditingEmail(customerId);
-    setEmailValue(currentEmail || '');
-  };
-
-  const handleSaveEmail = (customerId: string) => {
-    if (emailValue.trim() && emailValue.includes('@')) {
+  const handleEmailSave = (customerId: string) => {
+    if (emailValue.trim()) {
       updateEmailMutation.mutate({ customerId, email: emailValue.trim() });
-    } else {
-      toast({
-        title: 'Invalid Email',
-        description: 'Please enter a valid email address',
-        variant: 'destructive',
-      });
     }
-  };
-
-  const handleCancelEmail = () => {
-    setEditingEmail(null);
-    setEmailValue('');
   };
 
   if (isLoading) {
@@ -161,67 +146,62 @@ export function Customers() {
             >
               <Card className="overflow-hidden">
                 <CollapsibleTrigger className="w-full">
-                  <div className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center justify-between px-4 py-2 hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       {isExpanded ? (
                         <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       ) : (
                         <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       )}
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <div className="text-left min-w-0">
-                          <h3 className="font-semibold text-sm truncate">{customer.name}</h3>
-                          <p className="text-xs text-muted-foreground">{customer.phone}</p>
-                        </div>
-                        <div className="flex items-center gap-2 ml-auto" onClick={(e) => e.stopPropagation()}>
-                          {editingEmail === customer.id ? (
-                            <div className="flex items-center gap-2">
-                              <Input
-                                type="email"
-                                value={emailValue}
-                                onChange={(e) => setEmailValue(e.target.value)}
-                                placeholder="Enter email"
-                                className="h-8 w-48 text-sm"
-                              />
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0"
-                                onClick={() => handleSaveEmail(customer.id)}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0"
-                                onClick={handleCancelEmail}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 gap-2 text-xs"
-                              onClick={() => handleEditEmail(customer.id, customer.email)}
-                            >
+                      <div className="text-left flex-1 min-w-0">
+                        <div className="flex items-center gap-4">
+                          <h3 className="font-semibold text-sm">{customer.name}</h3>
+                          <p className="text-sm text-muted-foreground">{customer.phone}</p>
+                          {customer.email ? (
+                            <p className="text-sm text-muted-foreground flex items-center gap-1">
                               <Mail className="h-3 w-3" />
-                              {customer.email || 'Add email'}
-                            </Button>
+                              {customer.email}
+                            </p>
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">No email</span>
                           )}
                         </div>
                       </div>
                     </div>
-                    <Badge variant="secondary" className="ml-2 flex-shrink-0 text-xs">
-                      {customerLeads.length} Leads
-                    </Badge>
+                    <Badge variant="secondary" className="flex-shrink-0">{customerLeads.length} Leads</Badge>
                   </div>
                 </CollapsibleTrigger>
 
                 <CollapsibleContent>
-                  <div className="border-t">
+                  <div className="border-t p-4 space-y-4">
+                    {!customer.email && (
+                      <div className="bg-muted/30 p-3 rounded-lg">
+                        <Label htmlFor={`email-${customer.id}`} className="text-sm font-medium mb-2 block">
+                          Add Email Address
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id={`email-${customer.id}`}
+                            type="email"
+                            placeholder="Enter email address"
+                            value={editingEmail === customer.id ? emailValue : ''}
+                            onChange={(e) => {
+                              setEditingEmail(customer.id);
+                              setEmailValue(e.target.value);
+                            }}
+                            className="flex-1"
+                          />
+                          <button
+                            onClick={() => handleEmailSave(customer.id)}
+                            disabled={!emailValue.trim() || updateEmailMutation.isPending}
+                            className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
                     {customerLeads.length > 0 ? (
                       <Table>
                         <TableHeader>
