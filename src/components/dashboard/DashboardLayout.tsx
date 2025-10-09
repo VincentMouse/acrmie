@@ -40,7 +40,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <AppSidebar />
         
         <div className="flex-1 flex flex-col">
-          <header className="bg-card border-b border-border sticky top-0 z-10">
+          <header className="bg-card border-b border-border sticky top-0 z-40">
             <div className="px-4 py-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <SidebarTrigger />
