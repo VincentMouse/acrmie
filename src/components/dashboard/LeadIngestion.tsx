@@ -8,6 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Upload, Plus } from 'lucide-react';
+import Papa from 'papaparse';
 import { z } from 'zod';
 
 const leadSchema = z.object({
@@ -18,10 +21,21 @@ const leadSchema = z.object({
   funnelId: z.string().uuid('Please select a funnel'),
 });
 
+const csvLeadSchema = z.object({
+  phone: z.string().trim().min(10, 'Phone must be at least 10 digits'),
+  customerName: z.string().trim().min(1, 'Customer name is required'),
+  address: z.string().optional(),
+  serviceProduct: z.string().trim().min(1, 'Service/Product is required'),
+  campaignName: z.string().trim().min(1, 'Campaign name is required'),
+  marketerName: z.string().trim().min(1, 'Marketer name is required'),
+  marketerNotes: z.string().optional(),
+});
+
 export function LeadIngestion() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
+  const [uploadResults, setUploadResults] = useState<{ success: number; failed: number } | null>(null);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -54,6 +68,71 @@ export function LeadIngestion() {
 
       if (error) throw error;
       return data;
+    },
+  });
+
+  const bulkCreateLeadsMutation = useMutation({
+    mutationFn: async (leads: any[]) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const results = { success: 0, failed: 0 };
+      
+      for (const lead of leads) {
+        try {
+          // Check for duplicates
+          const { data: duplicates } = await supabase
+            .from('leads')
+            .select('id, first_name, last_name, phone')
+            .eq('phone', lead.phone)
+            .limit(1);
+
+          const [firstName, ...lastNameParts] = lead.customerName.trim().split(' ');
+          const lastName = lastNameParts.join(' ') || firstName;
+
+          const leadData = {
+            first_name: firstName,
+            last_name: lastName,
+            phone: lead.phone,
+            address: lead.address || null,
+            service_product: lead.serviceProduct,
+            campaign_name: lead.campaignName,
+            marketer_name: lead.marketerName,
+            notes: lead.marketerNotes || null,
+            status: 'status_0' as const,
+            created_by: user.id,
+            is_duplicate: duplicates && duplicates.length > 0,
+            duplicate_of: duplicates && duplicates.length > 0 ? duplicates[0].id : null,
+          };
+
+          const { error } = await supabase.from('leads').insert([leadData]);
+          
+          if (error) throw error;
+          results.success++;
+        } catch (error) {
+          console.error('Failed to create lead:', error);
+          results.failed++;
+        }
+      }
+      
+      return results;
+    },
+    onSuccess: (results) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      setUploadResults(results);
+      
+      toast({
+        title: 'CSV Import Complete',
+        description: `Successfully imported ${results.success} leads. ${results.failed > 0 ? `${results.failed} failed.` : ''}`,
+        variant: results.failed > 0 ? 'destructive' : 'default',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to import leads',
+        description: error.message,
+        variant: 'destructive',
+      });
     },
   });
 
@@ -109,6 +188,56 @@ export function LeadIngestion() {
     },
   });
 
+  const handleCSVUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        try {
+          const validatedLeads = results.data.map((row: any, index: number) => {
+            try {
+              return csvLeadSchema.parse({
+                phone: row['Phone Number'] || row['phone'],
+                customerName: row['Customer Name'] || row['customerName'],
+                address: row['Customer Address'] || row['address'] || '',
+                serviceProduct: row['Service/Product'] || row['serviceProduct'],
+                campaignName: row['Campaign Name'] || row['campaignName'],
+                marketerName: row['Marketer Name'] || row['marketerName'],
+                marketerNotes: row['Marketer Notes'] || row['marketerNotes'] || '',
+              });
+            } catch (error) {
+              if (error instanceof z.ZodError) {
+                throw new Error(`Row ${index + 1}: ${error.errors[0].message}`);
+              }
+              throw error;
+            }
+          });
+
+          bulkCreateLeadsMutation.mutate(validatedLeads);
+        } catch (error: any) {
+          toast({
+            title: 'CSV Validation Error',
+            description: error.message,
+            variant: 'destructive',
+          });
+        }
+      },
+      error: (error) => {
+        toast({
+          title: 'Failed to parse CSV',
+          description: error.message,
+          variant: 'destructive',
+        });
+      },
+    });
+
+    // Reset file input
+    event.target.value = '';
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -132,20 +261,79 @@ export function LeadIngestion() {
         <div>
           <h2 className="text-2xl font-bold">Lead Ingestion</h2>
           <p className="text-muted-foreground mt-1">
-            Add new leads from your marketing funnels. Duplicates will be automatically flagged.
+            Add cold leads manually or upload via CSV spreadsheet. Duplicates will be automatically flagged.
           </p>
         </div>
         
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button>Add New Lead</Button>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Leads
+            </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Add New Lead</DialogTitle>
+              <DialogTitle>Add Cold Leads</DialogTitle>
             </DialogHeader>
             
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <Tabs defaultValue="csv" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="csv">
+                  <Upload className="h-4 w-4 mr-2" />
+                  CSV Upload
+                </TabsTrigger>
+                <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="csv" className="space-y-4">
+                <div className="space-y-4">
+                  <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                    <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="font-semibold mb-2">Upload CSV File</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Upload a spreadsheet with cold lead information
+                    </p>
+                    <Input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCSVUpload}
+                      className="max-w-xs mx-auto"
+                    />
+                  </div>
+
+                  {uploadResults && (
+                    <div className="p-4 bg-muted rounded-lg">
+                      <p className="font-semibold mb-2">Upload Results:</p>
+                      <p className="text-sm">✓ Successfully imported: {uploadResults.success}</p>
+                      {uploadResults.failed > 0 && (
+                        <p className="text-sm text-destructive">✗ Failed: {uploadResults.failed}</p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p className="font-semibold">Required CSV Columns:</p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>Phone Number (required)</li>
+                      <li>Customer Name (required)</li>
+                      <li>Customer Address (optional)</li>
+                      <li>Service/Product (required)</li>
+                      <li>Campaign Name (required)</li>
+                      <li>Marketer Name (required)</li>
+                      <li>Marketer Notes (optional)</li>
+                    </ul>
+                    <p className="mt-3 text-xs">
+                      • Lead ID will be auto-generated<br />
+                      • Lead Generation Date will be set to current Vietnam time<br />
+                      • Status will be auto-assigned to "New - Unassigned"
+                    </p>
+                  </div>
+                </div>
+              </TabsContent>
+              
+              <TabsContent value="manual">
+                <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name *</Label>
@@ -208,22 +396,25 @@ export function LeadIngestion() {
                 </Select>
               </div>
 
-              <Button 
-                type="submit" 
-                className="w-full"
-                disabled={createLeadMutation.isPending}
-              >
-                {createLeadMutation.isPending ? 'Creating...' : 'Create Lead'}
-              </Button>
-            </form>
+                  <Button 
+                    type="submit" 
+                    className="w-full"
+                    disabled={createLeadMutation.isPending}
+                  >
+                    {createLeadMutation.isPending ? 'Creating...' : 'Create Lead'}
+                  </Button>
+                </form>
+              </TabsContent>
+            </Tabs>
           </DialogContent>
         </Dialog>
       </div>
 
       <div className="text-sm text-muted-foreground">
-        <p>• Leads will be created with status "New - Unassigned" (Status 0)</p>
+        <p>• Cold leads can be uploaded via CSV or entered manually</p>
+        <p>• All leads are created with status "New - Unassigned" (Status 0)</p>
         <p>• Duplicate detection is automatic based on phone number</p>
-        <p>• All leads start in the unassigned pool for Tele Sales to pick up</p>
+        <p>• Lead Generation Date is automatically set to Vietnam timezone</p>
       </div>
     </Card>
   );

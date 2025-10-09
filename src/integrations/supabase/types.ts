@@ -171,7 +171,9 @@ export type Database = {
       }
       leads: {
         Row: {
+          address: string | null
           assigned_to: string | null
+          campaign_name: string | null
           created_at: string | null
           created_by: string | null
           duplicate_of: string | null
@@ -181,13 +183,17 @@ export type Database = {
           id: string
           is_duplicate: boolean | null
           last_name: string
+          marketer_name: string | null
           notes: string | null
           phone: string
+          service_product: string
           status: Database["public"]["Enums"]["lead_status"]
           updated_at: string | null
         }
         Insert: {
+          address?: string | null
           assigned_to?: string | null
+          campaign_name?: string | null
           created_at?: string | null
           created_by?: string | null
           duplicate_of?: string | null
@@ -197,13 +203,17 @@ export type Database = {
           id?: string
           is_duplicate?: boolean | null
           last_name: string
+          marketer_name?: string | null
           notes?: string | null
           phone: string
+          service_product?: string
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string | null
         }
         Update: {
+          address?: string | null
           assigned_to?: string | null
+          campaign_name?: string | null
           created_at?: string | null
           created_by?: string | null
           duplicate_of?: string | null
@@ -213,8 +223,10 @@ export type Database = {
           id?: string
           is_duplicate?: boolean | null
           last_name?: string
+          marketer_name?: string | null
           notes?: string | null
           phone?: string
+          service_product?: string
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string | null
         }
