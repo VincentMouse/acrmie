@@ -39,10 +39,10 @@ export function Customers() {
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isTeleSales } = useUserRole();
+  const { isTeleSales, isLoading: isRoleLoading } = useUserRole();
 
   const { data: customers, isLoading } = useQuery({
-    queryKey: ['customers', searchQuery],
+    queryKey: ['customers', searchQuery, isTeleSales],
     queryFn: async () => {
       // For Tele Sales, only fetch if there's a search query
       if (isTeleSales && !searchQuery) {
@@ -63,6 +63,7 @@ export function Customers() {
       if (error) throw error;
       return data as Customer[];
     },
+    enabled: !isRoleLoading,
   });
 
   const handlePhoneSearch = () => {
