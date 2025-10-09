@@ -386,7 +386,8 @@ export function LeadManagement() {
           updates.l1_period_1_count = (pulledLead.l1_period_1_count || 0) + 1;
         } else if (currentPeriod === 2) {
           updates.l1_period_2_count = (pulledLead.l1_period_2_count || 0) + 1;
-        } else if (currentPeriod === 3) {
+        } else {
+          // Assign calls outside time periods to Period 3
           updates.l1_period_3_count = (pulledLead.l1_period_3_count || 0) + 1;
         }
         
