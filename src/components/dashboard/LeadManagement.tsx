@@ -121,6 +121,7 @@ export function LeadManagement() {
   const [callbackTime, setCallbackTime] = useState<string>('10:00');
   const [assignTo, setAssignTo] = useState<'self' | 'team'>('self');
   const [showTimeOverride, setShowTimeOverride] = useState(false);
+  const [showNoLeadsDialog, setShowNoLeadsDialog] = useState(false);
   
   // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
   const isLeadManagementPage = location.pathname === '/dashboard/lead-management';
@@ -300,11 +301,7 @@ export function LeadManagement() {
       toast({ title: 'Lead assigned', description: 'Lead has been assigned to you' });
     },
     onError: (error: any) => {
-      toast({ 
-        title: 'No leads available', 
-        description: error.message, 
-        variant: 'destructive' 
-      });
+      setShowNoLeadsDialog(true);
     },
   });
 
@@ -674,6 +671,40 @@ export function LeadManagement() {
 
   return (
     <div className="space-y-6">
+      {/* No Leads Available Dialog */}
+      <Dialog open={showNoLeadsDialog} onOpenChange={setShowNoLeadsDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Phone className="h-6 w-6 text-muted-foreground" />
+              No Leads Available
+            </DialogTitle>
+            <DialogDescription className="pt-4 space-y-3">
+              <p className="text-base">
+                There are currently no eligible leads available for calling.
+              </p>
+              <div className="bg-muted/50 p-4 rounded-lg space-y-2 text-sm">
+                <p className="font-semibold">Possible reasons:</p>
+                <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                  <li>All L0 (Fresh) leads have been assigned</li>
+                  <li>L1 (Call Back) leads are in cooldown period</li>
+                  <li>L5 (Thinking) leads are in cooldown period</li>
+                  <li>No new leads have been ingested</li>
+                </ul>
+              </div>
+              <p className="text-sm text-muted-foreground pt-2">
+                Please check back later or contact your manager if you believe this is an error.
+              </p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowNoLeadsDialog(false)}>
+              Understood
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Lead Call Modal */}
       <Dialog open={isLeadModalOpen} onOpenChange={setIsLeadModalOpen}>
         <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
