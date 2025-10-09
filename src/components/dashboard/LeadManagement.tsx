@@ -141,11 +141,12 @@ export function LeadManagement() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Check if user already has an assigned lead
+      // Check if user already has an assigned lead (excluding L2 - Call Rescheduled)
       const { data: existingLeads } = await supabase
         .from('leads')
         .select('id')
-        .eq('assigned_to', user.id);
+        .eq('assigned_to', user.id)
+        .neq('status', 'status_2');
 
       if (existingLeads && existingLeads.length > 0) {
         throw new Error('You must complete your current lead before getting a new one');
