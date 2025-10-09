@@ -167,11 +167,9 @@ export function LeadManagement() {
 
       return availableLead;
     },
-    onSuccess: (lead) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-      setPulledLead(lead);
-      setIsLeadModalOpen(true);
-      setElapsedTime(0);
+      toast({ title: 'Lead assigned', description: 'Lead has been assigned to you' });
     },
     onError: (error: any) => {
       toast({ 
@@ -691,6 +689,20 @@ export function LeadManagement() {
                       disabled={assignToMeMutation.isPending}
                     >
                       Assign to Me
+                    </Button>
+                  )}
+                  {lead.assigned_to && isTeleSales && isLeadManagementPage && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setPulledLead(lead);
+                        setIsLeadModalOpen(true);
+                        setElapsedTime(0);
+                      }}
+                    >
+                      <Phone className="h-4 w-4 mr-2" />
+                      Call
                     </Button>
                   )}
                 </TableCell>
