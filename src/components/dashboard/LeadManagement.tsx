@@ -15,9 +15,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Clock, Settings, Phone, User, Timer, CalendarIcon } from 'lucide-react';
+import { Clock, Settings, Phone, User, Timer, CalendarIcon, TestTube } from 'lucide-react';
 import { format, setHours, setMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { TimeOverrideTool } from './TimeOverrideTool';
 
 const STATUS_LABELS = {
   status_0: 'L0 - Fresh Lead',
@@ -30,8 +31,13 @@ const STATUS_LABELS = {
 };
 
 // L1 Time Period helpers
+const getEffectiveTime = (): Date => {
+  const override = localStorage.getItem('timeOverride');
+  return override ? new Date(override) : new Date();
+};
+
 const getCurrentTimePeriod = (): number => {
-  const now = new Date();
+  const now = getEffectiveTime();
   const hours = now.getHours();
   const minutes = now.getMinutes();
   const timeInMinutes = hours * 60 + minutes;
@@ -48,7 +54,7 @@ const getCurrentTimePeriod = (): number => {
 };
 
 const calculateL1Cooldown = (currentPeriod: number, lastContactPeriod: number | null): Date | null => {
-  const now = new Date();
+  const now = getEffectiveTime();
   const cooldownDate = new Date(now);
   
   // If this is the first contact (no last contact period)
@@ -114,6 +120,7 @@ export function LeadManagement() {
   const [callbackDate, setCallbackDate] = useState<Date | undefined>(undefined);
   const [callbackTime, setCallbackTime] = useState<string>('10:00');
   const [assignTo, setAssignTo] = useState<'self' | 'team'>('self');
+  const [showTimeOverride, setShowTimeOverride] = useState(false);
   
   // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
   const isLeadManagementPage = location.pathname === '/dashboard/lead-management';
@@ -881,6 +888,21 @@ export function LeadManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Time Override Tool - Only for Admin */}
+      {isAdmin && !isLeadManagementPage && (
+        <div className="space-y-4">
+          <Button
+            variant="outline"
+            onClick={() => setShowTimeOverride(!showTimeOverride)}
+            className="w-full"
+          >
+            <TestTube className="h-4 w-4 mr-2" />
+            {showTimeOverride ? 'Hide' : 'Show'} Time Override Tool
+          </Button>
+          {showTimeOverride && <TimeOverrideTool />}
+        </div>
+      )}
 
       {/* Cooldown Settings - Only for Admin/Sales Manager on Leads page */}
       {(isAdmin || isSalesManager) && !isLeadManagementPage && (
