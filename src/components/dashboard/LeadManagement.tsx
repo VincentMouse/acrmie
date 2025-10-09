@@ -11,13 +11,13 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const STATUS_LABELS = {
-  status_0: 'New - Unassigned',
-  status_1: 'Initial Contact',
-  status_2: 'Qualified',
-  status_3: 'Proposal',
-  status_4: 'Negotiation',
-  status_5: 'Verbal Agreement',
-  status_6: 'Ready for Sales',
+  status_0: 'L0 - Fresh Lead',
+  status_1: 'L1 - No Answer',
+  status_2: 'L2 - Call Rescheduled',
+  status_3: 'L3 - Cancelled',
+  status_4: 'L4 - Blacklisted',
+  status_5: 'L5 - Thinking',
+  status_6: 'L6 - Appointment Set',
 };
 
 export function LeadManagement() {
