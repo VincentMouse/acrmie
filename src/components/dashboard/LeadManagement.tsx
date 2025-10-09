@@ -256,13 +256,14 @@ export function LeadManagement() {
         .limit(1)
         .single();
 
-      // If no L0, try L1 (No Answer) - no cooldown check for L1
+      // If no L0, try L1 (No Answer)
       if (!availableLead) {
         const result = await supabase
           .from('leads')
           .select('*')
           .eq('status', 'status_1')
           .is('assigned_to', null)
+          .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
           .limit(1)
           .maybeSingle();
         availableLead = result.data;
@@ -390,8 +391,11 @@ export function LeadManagement() {
           updates.l1_period_3_count = (pulledLead.l1_period_3_count || 0) + 1;
         }
         
-        // No cooldown for first 6 calls - period-based availability only
-        updates.cooldown_until = null;
+        // Calculate next available time
+        const cooldownUntil = calculateL1Cooldown(currentPeriod, pulledLead.l1_last_contact_period);
+        if (cooldownUntil) {
+          updates.cooldown_until = cooldownUntil.toISOString();
+        }
       }
 
       // Handle L2 (Call Rescheduled) assignment logic
