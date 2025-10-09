@@ -587,12 +587,19 @@ export function LeadManagement() {
                     </div>
                   </div>
 
-                  {/* Timer */}
-                  <div className="flex items-center justify-center p-4 bg-primary/10 rounded-lg">
-                    <div className="text-center">
-                      <Clock className="h-6 w-6 mx-auto mb-2 text-primary" />
-                      <div className="text-3xl font-bold text-primary">{formatTime(elapsedTime)}</div>
-                      <p className="text-sm text-muted-foreground mt-1">Call Duration</p>
+                  {/* Timer and Service/Product */}
+                  <div className="flex flex-col gap-2 p-4 bg-primary/10 rounded-lg">
+                    {/* Call Duration - Top Half */}
+                    <div className="text-center border-b border-primary/20 pb-2">
+                      <Clock className="h-5 w-5 mx-auto mb-1 text-primary" />
+                      <div className="text-2xl font-bold text-primary">{formatTime(elapsedTime)}</div>
+                      <p className="text-xs text-muted-foreground mt-1">Call Duration</p>
+                    </div>
+                    
+                    {/* Service/Product - Bottom Half */}
+                    <div className="text-center pt-2">
+                      <p className="text-xs text-muted-foreground mb-1">Service/Product</p>
+                      <p className="font-medium text-sm">{pulledLead.service_product || '-'}</p>
                     </div>
                   </div>
                 </div>
