@@ -136,21 +136,27 @@ export function BranchManagement() {
       if (!selectedBranch) return;
 
       return new Promise((resolve, reject) => {
-        Papa.parse(file, {
-          header: true,
-          complete: async (results) => {
-            try {
-              const data = results.data
-                .filter((row: any) => row.Code && row.Name)
-                .map((row: any) => ({
+      Papa.parse(file, {
+        header: true,
+        transformHeader: (header: string) => header.trim(),
+        complete: async (results) => {
+          try {
+            const data = results.data
+              .filter((row: any) => row.Code && row.Name)
+              .map((row: any) => {
+                // Handle different possible column names for Type
+                const typeValue = row.Type || row.type || row.TYPE || '';
+                
+                return {
                   branch_id: selectedBranch,
                   code: row.Code,
                   name: row.Name,
                   price: row.Price ? parseFloat(row.Price.toString().replace(/,/g, '')) : 0,
                   number_of_treatments: parseInt(row['Number of treatment']) || null,
-                  type: row.Type || '',
+                  type: typeValue.trim(),
                   category: row['Service/Product'] === 'Service' ? 'Service' : 'Product',
-                }));
+                };
+              });
 
               const { error } = await supabase.from('services_products').insert(data);
               if (error) throw error;
