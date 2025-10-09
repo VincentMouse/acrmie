@@ -568,7 +568,7 @@ export function LeadManagement() {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="overflow-y-auto flex-1 px-1">
+          <div className="overflow-y-auto flex-1 px-1 pb-4">
             {pulledLead && (
               <div className="space-y-6">
                 {/* Customer Details and Timer - Same Row */}
