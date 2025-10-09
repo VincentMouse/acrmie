@@ -809,7 +809,8 @@ export function LeadManagement() {
 
   const L3_CALL_OUTCOMES = [
     'Not Interested',
-    'Session Already Booked'
+    'Session Already Booked',
+    'Too Expensive'
   ];
 
   // Get filtered call outcomes based on status
