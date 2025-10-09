@@ -7,6 +7,7 @@ import { LeadManagement } from '@/components/dashboard/LeadManagement';
 import { UserManagement } from '@/components/dashboard/UserManagement';
 import { LeadIngestion } from '@/components/dashboard/LeadIngestion';
 import { AppointmentManagement } from '@/components/dashboard/AppointmentManagement';
+import { Customers } from '@/components/dashboard/Customers';
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
@@ -42,6 +43,7 @@ export default function Dashboard() {
         <Route path="/lead-management" element={<LeadManagement />} />
         <Route path="/ingestion" element={<LeadIngestion />} />
         <Route path="/appointments" element={<AppointmentManagement />} />
+        <Route path="/customers" element={<Customers />} />
         <Route path="/users" element={<UserManagement />} />
       </Routes>
     </DashboardLayout>

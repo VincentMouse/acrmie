@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Users, UserPlus, FileText, Calendar } from 'lucide-react';
+import { Users, UserPlus, FileText, Calendar, Building2 } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 import {
   Sidebar,
@@ -28,6 +28,7 @@ export function AppSidebar() {
     { title: 'Leads', url: '/dashboard/leads', icon: FileText, show: isAdmin || isSalesManager || isViewOnly },
     { title: 'Lead Management', url: '/dashboard/lead-management', icon: FileText, show: isAdmin || isTeleSales },
     { title: 'Appointments', url: '/dashboard/appointments', icon: Calendar, show: isTeleSales || isCustomerService || isAdmin || isSalesManager || isViewOnly },
+    { title: 'Customers', url: '/dashboard/customers', icon: Building2, show: true },
     { title: 'User Management', url: '/dashboard/users', icon: Users, show: isAdmin },
   ];
 
