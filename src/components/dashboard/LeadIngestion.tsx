@@ -15,11 +15,13 @@ import { z } from 'zod';
 import { MessengerLeadIngestion } from './MessengerLeadIngestion';
 
 const leadSchema = z.object({
-  firstName: z.string().trim().min(1, 'First name is required'),
-  lastName: z.string().trim().min(1, 'Last name is required'),
-  email: z.string().trim().email('Invalid email').optional().or(z.literal('')),
   phone: z.string().trim().min(10, 'Phone must be at least 10 digits'),
-  funnelId: z.string().uuid('Please select a funnel'),
+  customerName: z.string().trim().min(1, 'Customer name is required'),
+  address: z.string().optional(),
+  serviceProduct: z.string().trim().min(1, 'Service/Product is required'),
+  campaignName: z.string().trim().min(1, 'Campaign name is required'),
+  marketerName: z.string().trim().min(1, 'Marketer name is required'),
+  marketerNotes: z.string().optional(),
 });
 
 const csvLeadSchema = z.object({
@@ -38,11 +40,13 @@ export function LeadIngestion() {
   const [isOpen, setIsOpen] = useState(false);
   const [uploadResults, setUploadResults] = useState<{ success: number; failed: number } | null>(null);
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
     phone: '',
-    funnelId: '',
+    customerName: '',
+    address: '',
+    serviceProduct: '',
+    campaignName: '',
+    marketerName: '',
+    marketerNotes: '',
   });
 
   const { data: funnels } = useQuery({
@@ -146,13 +150,21 @@ export function LeadIngestion() {
       // Check for duplicates
       const duplicates = await checkDuplicateMutation.mutateAsync(data.phone);
       
+      const [firstName, ...lastNameParts] = data.customerName.trim().split(' ');
+      const lastName = lastNameParts.join(' ') || firstName;
+
       const leadData = {
-        first_name: data.firstName,
-        last_name: data.lastName,
-        email: data.email || null,
+        first_name: firstName,
+        last_name: lastName,
         phone: data.phone,
-        funnel_id: data.funnelId,
+        address: data.address || null,
+        service_product: data.serviceProduct,
+        campaign_name: data.campaignName,
+        marketer_name: data.marketerName,
+        notes: data.marketerNotes || null,
+        status: 'status_0' as const,
         created_by: user.id,
+        funnel_id: null,
         is_duplicate: duplicates && duplicates.length > 0,
         duplicate_of: duplicates && duplicates.length > 0 ? duplicates[0].id : null,
       };
@@ -179,7 +191,7 @@ export function LeadIngestion() {
       }
       
       setIsOpen(false);
-      setFormData({ firstName: '', lastName: '', email: '', phone: '', funnelId: '' });
+      setFormData({ phone: '', customerName: '', address: '', serviceProduct: '', campaignName: '', marketerName: '', marketerNotes: '' });
     },
     onError: (error: any) => {
       toast({ 
@@ -338,67 +350,74 @@ export function LeadIngestion() {
               
               <TabsContent value="manual">
                 <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name *</Label>
-                  <Input
-                    id="firstName"
-                    value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                    required
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name *</Label>
-                  <Input
-                    id="lastName"
-                    value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    required
-                  />
-                </div>
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number *</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      required
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="customerName">Customer Name *</Label>
+                    <Input
+                      id="customerName"
+                      value={formData.customerName}
+                      onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                      required
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone *</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  required
-                />
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Customer Address</Label>
+                    <Input
+                      id="address"
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="funnel">Marketing Funnel *</Label>
-                <Select 
-                  value={formData.funnelId} 
-                  onValueChange={(value) => setFormData({ ...formData, funnelId: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select funnel" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {funnels?.map((funnel) => (
-                      <SelectItem key={funnel.id} value={funnel.id}>
-                        {funnel.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="serviceProduct">Service/Product *</Label>
+                    <Input
+                      id="serviceProduct"
+                      value={formData.serviceProduct}
+                      onChange={(e) => setFormData({ ...formData, serviceProduct: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="campaignName">Campaign Name *</Label>
+                    <Input
+                      id="campaignName"
+                      value={formData.campaignName}
+                      onChange={(e) => setFormData({ ...formData, campaignName: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="marketerName">Marketer Name *</Label>
+                    <Input
+                      id="marketerName"
+                      value={formData.marketerName}
+                      onChange={(e) => setFormData({ ...formData, marketerName: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="marketerNotes">Marketer Notes</Label>
+                    <Input
+                      id="marketerNotes"
+                      value={formData.marketerNotes}
+                      onChange={(e) => setFormData({ ...formData, marketerNotes: e.target.value })}
+                    />
+                  </div>
 
                   <Button 
                     type="submit" 
