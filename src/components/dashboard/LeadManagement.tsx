@@ -29,6 +29,75 @@ const STATUS_LABELS = {
   status_6: 'L6 - Appointment Set',
 };
 
+// L1 Time Period helpers
+const getCurrentTimePeriod = (): number => {
+  const now = new Date();
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const timeInMinutes = hours * 60 + minutes;
+  
+  // Period 1: 9:30 AM - 12:00 PM (570 - 720 minutes)
+  if (timeInMinutes >= 570 && timeInMinutes <= 720) return 1;
+  // Period 2: 12:01 PM - 5:00 PM (721 - 1020 minutes)
+  if (timeInMinutes >= 721 && timeInMinutes <= 1020) return 2;
+  // Period 3: 5:01 PM - 6:30 PM (1021 - 1110 minutes)
+  if (timeInMinutes >= 1021 && timeInMinutes <= 1110) return 3;
+  
+  // Outside calling hours
+  return 0;
+};
+
+const calculateL1Cooldown = (currentPeriod: number, lastContactPeriod: number | null): Date | null => {
+  const now = new Date();
+  const cooldownDate = new Date(now);
+  
+  // If this is the first contact (no last contact period)
+  if (lastContactPeriod === null) {
+    // Skip current and next period
+    if (currentPeriod === 1) {
+      // Current in Period 1, skip Period 2, available in Period 3 (same day)
+      cooldownDate.setHours(17, 1, 0, 0); // 5:01 PM
+      return cooldownDate;
+    } else if (currentPeriod === 2) {
+      // Current in Period 2, skip Period 3, available in Period 1 next day
+      cooldownDate.setDate(cooldownDate.getDate() + 1);
+      cooldownDate.setHours(9, 30, 0, 0); // 9:30 AM next day
+      return cooldownDate;
+    } else if (currentPeriod === 3) {
+      // Current in Period 3, skip Period 1 next day, available in Period 2 next day
+      cooldownDate.setDate(cooldownDate.getDate() + 1);
+      cooldownDate.setHours(12, 1, 0, 0); // 12:01 PM next day
+      return cooldownDate;
+    }
+  }
+  
+  // For subsequent contacts, ensure we don't call in same period consecutively
+  // and follow the skip pattern
+  if (lastContactPeriod === 1) {
+    // Last was Period 1, next should be Period 3 (same day if possible, else next day)
+    if (currentPeriod < 3) {
+      cooldownDate.setHours(17, 1, 0, 0); // 5:01 PM same day
+    } else {
+      // Already in or past Period 3, go to next day Period 3
+      cooldownDate.setDate(cooldownDate.getDate() + 1);
+      cooldownDate.setHours(17, 1, 0, 0);
+    }
+    return cooldownDate;
+  } else if (lastContactPeriod === 2) {
+    // Last was Period 2, next should be Period 1 next day
+    cooldownDate.setDate(cooldownDate.getDate() + 1);
+    cooldownDate.setHours(9, 30, 0, 0);
+    return cooldownDate;
+  } else if (lastContactPeriod === 3) {
+    // Last was Period 3, next should be Period 2 next day
+    cooldownDate.setDate(cooldownDate.getDate() + 1);
+    cooldownDate.setHours(12, 1, 0, 0);
+    return cooldownDate;
+  }
+  
+  return null;
+};
+
 export function LeadManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -279,6 +348,48 @@ export function LeadManagement() {
         notes: callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`,
       };
 
+      // Handle L1 custom cooldown logic
+      if (statusUpdate === 'status_1') {
+        const currentPeriod = getCurrentTimePeriod();
+        const currentContactCount = pulledLead.l1_contact_count || 0;
+        
+        // Check if already reached 6 contacts
+        if (currentContactCount >= 6) {
+          throw new Error('Lead has already received maximum 6 contact attempts');
+        }
+        
+        // Check period limits (max 2 per period)
+        const periodCounts = {
+          1: pulledLead.l1_period_1_count || 0,
+          2: pulledLead.l1_period_2_count || 0,
+          3: pulledLead.l1_period_3_count || 0,
+        };
+        
+        if (currentPeriod > 0 && periodCounts[currentPeriod as 1 | 2 | 3] >= 2) {
+          throw new Error(`Period ${currentPeriod} has already reached maximum 2 contacts`);
+        }
+        
+        // Update L1 tracking fields
+        updates.l1_contact_count = currentContactCount + 1;
+        updates.l1_last_contact_period = currentPeriod;
+        updates.l1_last_contact_time = new Date().toISOString();
+        
+        // Increment period-specific count
+        if (currentPeriod === 1) {
+          updates.l1_period_1_count = (pulledLead.l1_period_1_count || 0) + 1;
+        } else if (currentPeriod === 2) {
+          updates.l1_period_2_count = (pulledLead.l1_period_2_count || 0) + 1;
+        } else if (currentPeriod === 3) {
+          updates.l1_period_3_count = (pulledLead.l1_period_3_count || 0) + 1;
+        }
+        
+        // Calculate next available time
+        const cooldownUntil = calculateL1Cooldown(currentPeriod, pulledLead.l1_last_contact_period);
+        if (cooldownUntil) {
+          updates.cooldown_until = cooldownUntil.toISOString();
+        }
+      }
+
       // Handle L2 (Call Rescheduled) assignment logic
       if (statusUpdate === 'status_2') {
         if (assignTo === 'self') {
@@ -312,7 +423,8 @@ export function LeadManagement() {
           cooldownUntil.setHours(cooldownUntil.getHours() + Number(setting.setting_value));
           updates.cooldown_until = cooldownUntil.toISOString();
         }
-      } else {
+      } else if (statusUpdate !== 'status_1') {
+        // Clear cooldown for other statuses (except L1 which has custom cooldown)
         updates.cooldown_until = null;
       }
 
@@ -914,7 +1026,22 @@ export function LeadManagement() {
                 )}
                 {!isLeadManagementPage && (
                   <TableCell>
-                    {getRemainingCooldown(lead.cooldown_until) ? (
+                    {lead.status === 'status_1' && lead.l1_contact_count > 0 ? (
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="secondary" className="w-fit">
+                          {lead.l1_contact_count}/6 calls
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          P1: {lead.l1_period_1_count || 0}/2 | P2: {lead.l1_period_2_count || 0}/2 | P3: {lead.l1_period_3_count || 0}/2
+                        </span>
+                        {getRemainingCooldown(lead.cooldown_until) && (
+                          <Badge variant="outline" className="w-fit gap-1">
+                            <Timer className="h-3 w-3" />
+                            {getRemainingCooldown(lead.cooldown_until)}
+                          </Badge>
+                        )}
+                      </div>
+                    ) : getRemainingCooldown(lead.cooldown_until) ? (
                       <Badge variant="secondary" className="gap-1">
                         <Clock className="h-3 w-3" />
                         {getRemainingCooldown(lead.cooldown_until)}

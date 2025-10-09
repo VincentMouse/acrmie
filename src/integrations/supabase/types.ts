@@ -238,6 +238,12 @@ export type Database = {
           funnel_id: string | null
           id: string
           is_duplicate: boolean | null
+          l1_contact_count: number | null
+          l1_last_contact_period: number | null
+          l1_last_contact_time: string | null
+          l1_period_1_count: number | null
+          l1_period_2_count: number | null
+          l1_period_3_count: number | null
           last_name: string
           marketer_name: string | null
           notes: string | null
@@ -260,6 +266,12 @@ export type Database = {
           funnel_id?: string | null
           id?: string
           is_duplicate?: boolean | null
+          l1_contact_count?: number | null
+          l1_last_contact_period?: number | null
+          l1_last_contact_time?: string | null
+          l1_period_1_count?: number | null
+          l1_period_2_count?: number | null
+          l1_period_3_count?: number | null
           last_name: string
           marketer_name?: string | null
           notes?: string | null
@@ -282,6 +294,12 @@ export type Database = {
           funnel_id?: string | null
           id?: string
           is_duplicate?: boolean | null
+          l1_contact_count?: number | null
+          l1_last_contact_period?: number | null
+          l1_last_contact_time?: string | null
+          l1_period_1_count?: number | null
+          l1_period_2_count?: number | null
+          l1_period_3_count?: number | null
           last_name?: string
           marketer_name?: string | null
           notes?: string | null
