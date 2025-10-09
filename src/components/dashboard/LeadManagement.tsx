@@ -28,6 +28,7 @@ const STATUS_LABELS = {
   status_4: 'L4 - Blacklisted',
   status_5: 'L5 - Thinking',
   status_6: 'L6 - Appointment Set',
+  hibernation: 'Hibernation',
 };
 
 // L1 Time Period helpers
@@ -168,9 +169,14 @@ export function LeadManagement() {
         `)
         .order('created_at', { ascending: false });
 
-      // For Lead Management page, only show leads assigned to current user (excluding L2 - Call Rescheduled)
+      // For Lead Management page, only show leads assigned to current user (excluding L2 - Call Rescheduled and Hibernation)
       if (isLeadManagementPage && user) {
-        query = query.eq('assigned_to', user.id).neq('status', 'status_2');
+        query = query.eq('assigned_to', user.id).neq('status', 'status_2').neq('status', 'hibernation');
+      }
+
+      // Exclude hibernation leads from normal view unless filtered specifically
+      if (!isLeadManagementPage && statusFilter !== 'hibernation') {
+        query = query.neq('status', 'hibernation');
       }
 
       if (statusFilter !== 'all') {
@@ -181,6 +187,72 @@ export function LeadManagement() {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Query for hibernation leads
+  const { data: hibernationLeads, isLoading: isLoadingHibernation } = useQuery({
+    queryKey: ['hibernation-leads'],
+    queryFn: async () => {
+      const now = getEffectiveTime().toISOString();
+      
+      const { data, error } = await supabase
+        .from('leads')
+        .select(`
+          *,
+          funnel:funnels(name),
+          assigned:profiles!leads_assigned_to_fkey(full_name)
+        `)
+        .eq('status', 'hibernation')
+        .order('l1_last_contact_time', { ascending: true });
+
+      if (error) throw error;
+
+      // Check if any leads need to be moved back to L1
+      if (data && data.length > 0) {
+        const thirtyDaysAgo = new Date(getEffectiveTime());
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        for (const lead of data) {
+          if (lead.l1_last_contact_time) {
+            const lastContact = new Date(lead.l1_last_contact_time);
+            if (lastContact <= thirtyDaysAgo) {
+              // Reset to L1 status and clear L1 counters
+              await supabase
+                .from('leads')
+                .update({
+                  status: 'status_1',
+                  l1_contact_count: 0,
+                  l1_period_1_count: 0,
+                  l1_period_2_count: 0,
+                  l1_period_3_count: 0,
+                  l1_last_contact_period: null,
+                  cooldown_until: null,
+                  assigned_to: null,
+                  assigned_at: null,
+                })
+                .eq('id', lead.id);
+            }
+          }
+        }
+        
+        // Refetch to get updated data
+        const { data: updatedData } = await supabase
+          .from('leads')
+          .select(`
+            *,
+            funnel:funnels(name),
+            assigned:profiles!leads_assigned_to_fkey(full_name)
+          `)
+          .eq('status', 'hibernation')
+          .order('l1_last_contact_time', { ascending: true });
+        
+        return updatedData || [];
+      }
+
+      return data;
+    },
+    enabled: !isLeadManagementPage,
+    refetchInterval: 60000, // Check every minute
   });
 
   // Query for follow-up leads (L2 - Call Rescheduled) on My Assigned Leads page
@@ -372,41 +444,47 @@ export function LeadManagement() {
         const currentPeriod = getCurrentTimePeriod();
         const currentContactCount = pulledLead.l1_contact_count || 0;
         
-        // Check if already reached 6 contacts
-        if (currentContactCount >= 6) {
-          throw new Error('Lead has already received maximum 6 contact attempts');
-        }
-        
-        // Check period limits (max 2 per period)
-        const periodCounts = {
-          1: pulledLead.l1_period_1_count || 0,
-          2: pulledLead.l1_period_2_count || 0,
-          3: pulledLead.l1_period_3_count || 0,
-        };
-        
-        if (currentPeriod > 0 && periodCounts[currentPeriod as 1 | 2 | 3] >= 2) {
-          throw new Error(`Period ${currentPeriod} has already reached maximum 2 contacts`);
-        }
-        
-        // Update L1 tracking fields
-        updates.l1_contact_count = currentContactCount + 1;
-        updates.l1_last_contact_period = currentPeriod;
-        updates.l1_last_contact_time = getEffectiveTime().toISOString();
-        
-        // Increment period-specific count
-        if (currentPeriod === 1) {
-          updates.l1_period_1_count = (pulledLead.l1_period_1_count || 0) + 1;
-        } else if (currentPeriod === 2) {
-          updates.l1_period_2_count = (pulledLead.l1_period_2_count || 0) + 1;
+        // Check if this will be the 6th contact - if so, move to hibernation
+        if (currentContactCount >= 5) {
+          // Set to hibernation after 6th contact
+          updates.status = 'hibernation';
+          updates.l1_contact_count = currentContactCount + 1;
+          updates.l1_last_contact_time = getEffectiveTime().toISOString();
+          updates.cooldown_until = null;
+          updates.assigned_to = null;
+          updates.assigned_at = null;
         } else {
-          // Assign calls outside time periods to Period 3
-          updates.l1_period_3_count = (pulledLead.l1_period_3_count || 0) + 1;
-        }
-        
-        // Calculate next available time
-        const cooldownUntil = calculateL1Cooldown(currentPeriod, pulledLead.l1_last_contact_period);
-        if (cooldownUntil) {
-          updates.cooldown_until = cooldownUntil.toISOString();
+          // Check period limits (max 2 per period)
+          const periodCounts = {
+            1: pulledLead.l1_period_1_count || 0,
+            2: pulledLead.l1_period_2_count || 0,
+            3: pulledLead.l1_period_3_count || 0,
+          };
+          
+          if (currentPeriod > 0 && periodCounts[currentPeriod as 1 | 2 | 3] >= 2) {
+            throw new Error(`Period ${currentPeriod} has already reached maximum 2 contacts`);
+          }
+          
+          // Update L1 tracking fields
+          updates.l1_contact_count = currentContactCount + 1;
+          updates.l1_last_contact_period = currentPeriod;
+          updates.l1_last_contact_time = getEffectiveTime().toISOString();
+          
+          // Increment period-specific count
+          if (currentPeriod === 1) {
+            updates.l1_period_1_count = (pulledLead.l1_period_1_count || 0) + 1;
+          } else if (currentPeriod === 2) {
+            updates.l1_period_2_count = (pulledLead.l1_period_2_count || 0) + 1;
+          } else {
+            // Assign calls outside time periods to Period 3
+            updates.l1_period_3_count = (pulledLead.l1_period_3_count || 0) + 1;
+          }
+          
+          // Calculate next available time
+          const cooldownUntil = calculateL1Cooldown(currentPeriod, pulledLead.l1_last_contact_period);
+          if (cooldownUntil) {
+            updates.cooldown_until = cooldownUntil.toISOString();
+          }
         }
       }
 
@@ -458,6 +536,7 @@ export function LeadManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['follow-up-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['hibernation-leads'] });
       setIsLeadModalOpen(false);
       setPulledLead(null);
       setCallOutcome('');
@@ -1099,7 +1178,7 @@ export function LeadManagement() {
         <div className="mb-6 p-4 bg-muted/50 rounded-lg">
           <h3 className="text-lg font-semibold mb-3">Lead Status Summary</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {Object.entries(STATUS_LABELS).map(([statusKey, statusLabel]) => {
+            {Object.entries(STATUS_LABELS).filter(([key]) => key !== 'hibernation').map(([statusKey, statusLabel]) => {
               const count = statusSummary?.[statusKey] || 0;
               return (
                 <div key={statusKey} className="flex flex-col p-3 bg-background rounded-md border">
@@ -1109,9 +1188,15 @@ export function LeadManagement() {
               );
             })}
           </div>
-          <div className="mt-3 pt-3 border-t">
-            <span className="text-sm font-medium">Total Leads: </span>
-            <span className="text-lg font-bold text-primary">{leads?.length || 0}</span>
+          <div className="mt-3 pt-3 border-t flex justify-between items-center">
+            <div>
+              <span className="text-sm font-medium">Total Active Leads: </span>
+              <span className="text-lg font-bold text-primary">{leads?.length || 0}</span>
+            </div>
+            <div>
+              <span className="text-sm font-medium">Hibernation: </span>
+              <span className="text-lg font-bold text-orange-500">{hibernationLeads?.length || 0}</span>
+            </div>
           </div>
         </div>
       )}
@@ -1246,6 +1331,80 @@ export function LeadManagement() {
         </Table>
       </div>
       </Card>
+
+      {/* Hibernation Leads - Only on Leads page */}
+      {!isLeadManagementPage && (
+        <Card className="p-6">
+          <div className="mb-6">
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold">Hibernation Leads</h2>
+              <Badge variant="secondary">
+                {hibernationLeads?.length || 0}
+              </Badge>
+            </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              L1 leads that completed 6 calls. Will automatically return to L1 after 30 days.
+            </p>
+          </div>
+
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Service/Product</TableHead>
+                  <TableHead>Last Contact</TableHead>
+                  <TableHead>Days in Hibernation</TableHead>
+                  <TableHead>Returns to L1 in</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {hibernationLeads && hibernationLeads.length > 0 ? (
+                  hibernationLeads.map((lead) => {
+                    const lastContact = lead.l1_last_contact_time ? new Date(lead.l1_last_contact_time) : null;
+                    const now = getEffectiveTime();
+                    const daysInHibernation = lastContact 
+                      ? Math.floor((now.getTime() - lastContact.getTime()) / (1000 * 60 * 60 * 24))
+                      : 0;
+                    const daysRemaining = Math.max(0, 30 - daysInHibernation);
+                    
+                    return (
+                      <TableRow key={lead.id}>
+                        <TableCell className="font-medium">
+                          {lead.first_name} {lead.last_name}
+                          {lead.is_duplicate && (
+                            <Badge variant="destructive" className="ml-2">Duplicate</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>{lead.phone}</TableCell>
+                        <TableCell>{lead.service_product || '-'}</TableCell>
+                        <TableCell>
+                          {lastContact ? format(lastContact, 'PPp') : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{daysInHibernation} days</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={daysRemaining === 0 ? "default" : "secondary"}>
+                            {daysRemaining === 0 ? 'Ready' : `${daysRemaining} days`}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      No hibernation leads at this time
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      )}
 
       {/* My Follow-Up Leads - Only on My Assigned Leads page */}
       {isLeadManagementPage && isTeleSales && (
