@@ -667,8 +667,8 @@ export function LeadManagement() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
               <TableHead>Phone</TableHead>
+              <TableHead>Email</TableHead>
               {!isLeadManagementPage && <TableHead>Status</TableHead>}
               {!isLeadManagementPage && <TableHead>Cooldown Status</TableHead>}
               {!isLeadManagementPage && <TableHead>Funnel</TableHead>}
@@ -685,8 +685,8 @@ export function LeadManagement() {
                     <Badge variant="destructive" className="ml-2">Duplicate</Badge>
                   )}
                 </TableCell>
-                <TableCell>{lead.email || '-'}</TableCell>
                 <TableCell>{lead.phone}</TableCell>
+                <TableCell>{lead.email || '-'}</TableCell>
                 {!isLeadManagementPage && (
                   <TableCell>
                     {(isTeleSales || isAdmin || isSalesManager) ? (
@@ -769,8 +769,8 @@ export function LeadManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
+                  <TableHead>Email</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -784,8 +784,8 @@ export function LeadManagement() {
                           <Badge variant="destructive" className="ml-2">Duplicate</Badge>
                         )}
                       </TableCell>
-                      <TableCell>{lead.email || '-'}</TableCell>
                       <TableCell>{lead.phone}</TableCell>
+                      <TableCell>{lead.email || '-'}</TableCell>
                       <TableCell>
                         <Button
                           size="sm"
