@@ -229,7 +229,8 @@ export function LeadManagement() {
 
       const updates: any = { 
         status: statusUpdate as any,
-        notes: callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`
+        notes: callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`,
+        assigned_to: null // Unassign the lead when completed
       };
       
       // Auto-apply cooldown for L1 and L5
