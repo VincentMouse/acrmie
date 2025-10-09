@@ -19,6 +19,7 @@ import { Clock, Settings, Phone, User, Timer, CalendarIcon, TestTube, Trash2 } f
 import { format, setHours, setMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { TimeOverrideTool } from './TimeOverrideTool';
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 const STATUS_LABELS = {
   status_0: 'L0 - Fresh Lead',
@@ -127,6 +128,8 @@ export function LeadManagement() {
   const [showTimeOverride, setShowTimeOverride] = useState(false);
   const [showNoLeadsDialog, setShowNoLeadsDialog] = useState(false);
   const [showWipeConfirmDialog, setShowWipeConfirmDialog] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const leadsPerPage = 10;
   
   // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
   const isLeadManagementPage = location.pathname === '/dashboard/lead-management';
@@ -1216,7 +1219,7 @@ export function LeadManagement() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {leads?.map((lead) => (
+            {leads?.slice((currentPage - 1) * leadsPerPage, currentPage * leadsPerPage).map((lead) => (
               <TableRow key={lead.id}>
                 <TableCell className="font-medium">
                   {lead.first_name} {lead.last_name}
@@ -1330,6 +1333,72 @@ export function LeadManagement() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Pagination Controls */}
+      {leads && leads.length > leadsPerPage && (
+        <div className="mt-4">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (currentPage > 1) setCurrentPage(currentPage - 1);
+                  }}
+                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+              
+              {Array.from({ length: Math.ceil(leads.length / leadsPerPage) }, (_, i) => i + 1).map((page) => {
+                const totalPages = Math.ceil(leads.length / leadsPerPage);
+                // Show first page, last page, current page, and one page on each side of current
+                if (
+                  page === 1 ||
+                  page === totalPages ||
+                  (page >= currentPage - 1 && page <= currentPage + 1)
+                ) {
+                  return (
+                    <PaginationItem key={page}>
+                      <PaginationLink
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setCurrentPage(page);
+                        }}
+                        isActive={currentPage === page}
+                        className="cursor-pointer"
+                      >
+                        {page}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                } else if (page === currentPage - 2 || page === currentPage + 2) {
+                  return (
+                    <PaginationItem key={page}>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  );
+                }
+                return null;
+              })}
+
+              <PaginationItem>
+                <PaginationNext 
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (currentPage < Math.ceil(leads.length / leadsPerPage)) {
+                      setCurrentPage(currentPage + 1);
+                    }
+                  }}
+                  className={currentPage >= Math.ceil(leads.length / leadsPerPage) ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      )}
       </Card>
 
       {/* Hibernation Leads - Only on Leads page */}
