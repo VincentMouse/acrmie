@@ -9,6 +9,8 @@ import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Clock } from 'lucide-react';
 
 const STATUS_LABELS = {
   status_0: 'L0 - Fresh Lead',
@@ -99,6 +101,49 @@ export function LeadManagement() {
     },
   });
 
+  const setCooldownMutation = useMutation({
+    mutationFn: async ({ leadId, hours }: { leadId: string; hours: number }) => {
+      const cooldownUntil = new Date();
+      cooldownUntil.setHours(cooldownUntil.getHours() + hours);
+
+      const { error } = await supabase
+        .from('leads')
+        .update({ cooldown_until: cooldownUntil.toISOString() })
+        .eq('id', leadId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast({ title: 'Cooldown set', description: 'Contact cooldown has been set for this lead' });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Failed to set cooldown', 
+        description: error.message, 
+        variant: 'destructive' 
+      });
+    },
+  });
+
+  const getRemainingCooldown = (cooldownUntil: string | null) => {
+    if (!cooldownUntil) return null;
+    
+    const now = new Date();
+    const cooldown = new Date(cooldownUntil);
+    
+    if (now >= cooldown) return null;
+    
+    const diffMs = cooldown.getTime() - now.getTime();
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
   if (isLoading) {
     return <div className="text-center py-8">Loading leads...</div>;
   }
@@ -158,6 +203,7 @@ export function LeadManagement() {
               <TableHead>Email</TableHead>
               <TableHead>Phone</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Cooldown</TableHead>
               <TableHead>Funnel</TableHead>
               <TableHead>Assigned To</TableHead>
               <TableHead>Actions</TableHead>
@@ -193,6 +239,58 @@ export function LeadManagement() {
                     </Select>
                   ) : (
                     <Badge>{STATUS_LABELS[lead.status as keyof typeof STATUS_LABELS]}</Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {getRemainingCooldown(lead.cooldown_until) ? (
+                    <Badge variant="secondary" className="gap-1">
+                      <Clock className="h-3 w-3" />
+                      {getRemainingCooldown(lead.cooldown_until)}
+                    </Badge>
+                  ) : (
+                    (lead.status === 'status_1' || lead.status === 'status_5') && (isTeleSales || isAdmin || isSalesManager) && (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            Set Cooldown
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Set Contact Cooldown</DialogTitle>
+                            <DialogDescription>
+                              Choose how long before this lead can be contacted again.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="grid gap-2 pt-4">
+                            <Button
+                              onClick={() => setCooldownMutation.mutate({ leadId: lead.id, hours: 24 })}
+                              disabled={setCooldownMutation.isPending}
+                            >
+                              24 Hours
+                            </Button>
+                            <Button
+                              onClick={() => setCooldownMutation.mutate({ leadId: lead.id, hours: 48 })}
+                              disabled={setCooldownMutation.isPending}
+                            >
+                              48 Hours
+                            </Button>
+                            <Button
+                              onClick={() => setCooldownMutation.mutate({ leadId: lead.id, hours: 72 })}
+                              disabled={setCooldownMutation.isPending}
+                            >
+                              72 Hours
+                            </Button>
+                            <Button
+                              onClick={() => setCooldownMutation.mutate({ leadId: lead.id, hours: 168 })}
+                              disabled={setCooldownMutation.isPending}
+                            >
+                              1 Week
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    )
                   )}
                 </TableCell>
                 <TableCell>{lead.funnel?.name}</TableCell>

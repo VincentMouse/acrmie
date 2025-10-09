@@ -204,6 +204,7 @@ export type Database = {
           address: string | null
           assigned_to: string | null
           campaign_name: string | null
+          cooldown_until: string | null
           created_at: string | null
           created_by: string | null
           duplicate_of: string | null
@@ -224,6 +225,7 @@ export type Database = {
           address?: string | null
           assigned_to?: string | null
           campaign_name?: string | null
+          cooldown_until?: string | null
           created_at?: string | null
           created_by?: string | null
           duplicate_of?: string | null
@@ -244,6 +246,7 @@ export type Database = {
           address?: string | null
           assigned_to?: string | null
           campaign_name?: string | null
+          cooldown_until?: string | null
           created_at?: string | null
           created_by?: string | null
           duplicate_of?: string | null
