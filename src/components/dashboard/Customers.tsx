@@ -7,8 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ChevronDown, ChevronRight, Mail } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ChevronDown, ChevronRight, Mail, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useUserRole } from '@/hooks/useUserRole';
 
 type Customer = {
   id: string;
@@ -33,21 +35,39 @@ export function Customers() {
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
   const [emailValue, setEmailValue] = useState('');
+  const [phoneSearch, setPhoneSearch] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isTeleSales } = useUserRole();
 
   const { data: customers, isLoading } = useQuery({
-    queryKey: ['customers'],
+    queryKey: ['customers', searchQuery],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // For Tele Sales, only fetch if there's a search query
+      if (isTeleSales && !searchQuery) {
+        return [];
+      }
+
+      let query = supabase
         .from('customers')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
+
+      // If tele sales is searching, filter by exact phone match
+      if (isTeleSales && searchQuery) {
+        query = query.eq('phone', searchQuery);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
       return data as Customer[];
     },
   });
+
+  const handlePhoneSearch = () => {
+    setSearchQuery(phoneSearch.trim());
+  };
 
   const { data: leadsMap } = useQuery({
     queryKey: ['customer-leads'],
@@ -169,6 +189,28 @@ export function Customers() {
         <h2 className="text-2xl font-bold">Customers</h2>
         <Badge variant="outline">{customers?.length || 0} Total Customers</Badge>
       </div>
+
+      {isTeleSales && (
+        <div className="mb-6">
+          <Label htmlFor="phone-search" className="text-sm font-medium mb-2 block">
+            Search Customer by Phone Number
+          </Label>
+          <div className="flex gap-2">
+            <Input
+              id="phone-search"
+              placeholder="Enter exact phone number"
+              value={phoneSearch}
+              onChange={(e) => setPhoneSearch(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handlePhoneSearch()}
+              className="flex-1"
+            />
+            <Button onClick={handlePhoneSearch}>
+              <Search className="h-4 w-4 mr-2" />
+              Search
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-2">
         {customers?.map((customer) => {
@@ -321,7 +363,9 @@ export function Customers() {
 
         {!customers?.length && (
           <div className="text-center py-8 text-muted-foreground">
-            No customers found. Customers will be created automatically when leads are ingested.
+            {isTeleSales && !searchQuery
+              ? 'Enter a phone number to search for a customer'
+              : 'No customers found. Customers will be created automatically when leads are ingested.'}
           </div>
         )}
       </div>
