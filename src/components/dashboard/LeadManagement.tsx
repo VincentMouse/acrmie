@@ -469,33 +469,6 @@ export function LeadManagement() {
               {/* Call Form */}
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="call-outcome">Call Outcome *</Label>
-                  <Select value={callOutcome} onValueChange={setCallOutcome}>
-                    <SelectTrigger id="call-outcome">
-                      <SelectValue placeholder="Select outcome" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CALL_OUTCOMES.map((outcome) => (
-                        <SelectItem key={outcome} value={outcome}>
-                          {outcome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="call-notes">Call Notes</Label>
-                  <Textarea
-                    id="call-notes"
-                    placeholder="Enter any additional notes about the call..."
-                    value={callNotes}
-                    onChange={(e) => setCallNotes(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="space-y-2">
                   <Label htmlFor="status-update">Status Update *</Label>
                   <Select value={statusUpdate} onValueChange={setStatusUpdate}>
                     <SelectTrigger id="status-update">
@@ -510,6 +483,38 @@ export function LeadManagement() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* Show additional fields only after status is selected */}
+                {statusUpdate && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="call-outcome">Call Outcome *</Label>
+                      <Select value={callOutcome} onValueChange={setCallOutcome}>
+                        <SelectTrigger id="call-outcome">
+                          <SelectValue placeholder="Select outcome" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CALL_OUTCOMES.map((outcome) => (
+                            <SelectItem key={outcome} value={outcome}>
+                              {outcome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="call-notes">Call Notes</Label>
+                      <Textarea
+                        id="call-notes"
+                        placeholder="Enter any additional notes about the call..."
+                        value={callNotes}
+                        onChange={(e) => setCallNotes(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
