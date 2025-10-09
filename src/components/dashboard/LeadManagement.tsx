@@ -819,6 +819,12 @@ export function LeadManagement() {
     'Scam Call'
   ];
 
+  const L5_CALL_OUTCOMES = [
+    'Currently No Budget',
+    'Currently Busy',
+    'Spouse/Partner Disagree'
+  ];
+
   // Get filtered call outcomes based on status
   const getCallOutcomes = () => {
     if (statusUpdate === 'status_1') {
@@ -829,6 +835,9 @@ export function LeadManagement() {
     }
     if (statusUpdate === 'status_4') {
       return L4_CALL_OUTCOMES;
+    }
+    if (statusUpdate === 'status_5') {
+      return L5_CALL_OUTCOMES;
     }
     return CALL_OUTCOMES;
   };
