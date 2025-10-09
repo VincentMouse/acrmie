@@ -427,7 +427,7 @@ export function LeadManagement() {
     return `${minutes}m`;
   };
 
-  // Auto-set call outcome when L2 is selected
+  // Auto-set call outcome when L2 is selected, and reset when status changes
   useEffect(() => {
     if (statusUpdate === 'status_2') {
       setCallOutcome('Call Rescheduled');
@@ -435,6 +435,9 @@ export function LeadManagement() {
       if (selfManagedL2Count >= 5) {
         setAssignTo('team');
       }
+    } else {
+      // Reset call outcome when status changes from L2 or to L1
+      setCallOutcome('');
     }
   }, [statusUpdate, selfManagedL2Count]);
 
@@ -537,6 +540,20 @@ export function LeadManagement() {
     'Session Already Booked'
   ];
 
+  const L1_CALL_OUTCOMES = [
+    'No Answer',
+    'Busy Line',
+    'Can Not Be Reached'
+  ];
+
+  // Get filtered call outcomes based on status
+  const getCallOutcomes = () => {
+    if (statusUpdate === 'status_1') {
+      return L1_CALL_OUTCOMES;
+    }
+    return CALL_OUTCOMES;
+  };
+
   const AVAILABLE_STATUSES = Object.entries(STATUS_LABELS).filter(([key]) => key !== 'status_0');
 
   if (isLoading) {
@@ -635,7 +652,7 @@ export function LeadManagement() {
                             <SelectValue placeholder="Select outcome" />
                           </SelectTrigger>
                           <SelectContent>
-                            {CALL_OUTCOMES.map((outcome) => (
+                            {getCallOutcomes().map((outcome) => (
                               <SelectItem key={outcome} value={outcome}>
                                 {outcome}
                               </SelectItem>
