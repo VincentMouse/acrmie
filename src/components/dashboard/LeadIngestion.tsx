@@ -101,6 +101,7 @@ export function LeadIngestion() {
             notes: lead.marketerNotes || null,
             status: 'status_0' as const,
             created_by: user.id,
+            funnel_id: null,
             is_duplicate: duplicates && duplicates.length > 0,
             duplicate_of: duplicates && duplicates.length > 0 ? duplicates[0].id : null,
           };

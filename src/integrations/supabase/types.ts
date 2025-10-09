@@ -179,7 +179,7 @@ export type Database = {
           duplicate_of: string | null
           email: string | null
           first_name: string
-          funnel_id: string
+          funnel_id: string | null
           id: string
           is_duplicate: boolean | null
           last_name: string
@@ -199,7 +199,7 @@ export type Database = {
           duplicate_of?: string | null
           email?: string | null
           first_name: string
-          funnel_id: string
+          funnel_id?: string | null
           id?: string
           is_duplicate?: boolean | null
           last_name: string
@@ -219,7 +219,7 @@ export type Database = {
           duplicate_of?: string | null
           email?: string | null
           first_name?: string
-          funnel_id?: string
+          funnel_id?: string | null
           id?: string
           is_duplicate?: boolean | null
           last_name?: string
