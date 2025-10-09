@@ -129,6 +129,25 @@ export function LeadManagement() {
   const [showTimeOverride, setShowTimeOverride] = useState(false);
   const [showNoLeadsDialog, setShowNoLeadsDialog] = useState(false);
   const [showWipeConfirmDialog, setShowWipeConfirmDialog] = useState(false);
+
+  // Fetch lead history for the current lead
+  const { data: leadHistory } = useQuery({
+    queryKey: ['lead_history', pulledLead?.id],
+    queryFn: async () => {
+      if (!pulledLead?.id) return [];
+      
+      const { data, error } = await supabase
+        .from('lead_history')
+        .select('*')
+        .eq('lead_id', pulledLead.id)
+        .order('created_at', { ascending: false })
+        .limit(3);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!pulledLead?.id && isLeadModalOpen,
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
@@ -897,7 +916,7 @@ export function LeadManagement() {
 
       {/* Lead Call Modal */}
       <Dialog open={isLeadModalOpen} onOpenChange={setIsLeadModalOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
+        <DialogContent className="sm:max-w-[900px] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Phone className="h-5 w-5" />
@@ -910,7 +929,9 @@ export function LeadManagement() {
           
           <div className="overflow-y-auto flex-1 px-1 pb-4">
             {pulledLead && (
-              <div className="space-y-6">
+              <div className="grid grid-cols-3 gap-6">
+                {/* Left side - Form (2/3 width) */}
+                <div className="col-span-2 space-y-6">
                 {/* Customer Details and Timer - Same Row */}
                 <div className="grid grid-cols-2 gap-4">
                   {/* Customer Details */}
@@ -1093,6 +1114,56 @@ export function LeadManagement() {
                   )}
                 </div>
               </div>
+
+              {/* Right side - Quick History (1/3 width) */}
+              <div className="col-span-1 space-y-4">
+                <div className="sticky top-0">
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <Timer className="h-4 w-4" />
+                    Quick History
+                  </h3>
+                  <div className="space-y-3">
+                    {leadHistory && leadHistory.length > 0 ? (
+                      leadHistory.map((history, index) => (
+                        <div 
+                          key={history.id} 
+                          className="p-3 bg-muted/50 rounded-lg border border-border space-y-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <Badge variant="outline" className="text-xs">
+                              Attempt #{leadHistory.length - index}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {format(new Date(history.created_at), 'MMM d, h:mm a')}
+                            </span>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-xs">
+                              <span className="text-muted-foreground">Status: </span>
+                              <span className="font-medium">
+                                {STATUS_LABELS[history.new_status as keyof typeof STATUS_LABELS]}
+                              </span>
+                            </div>
+                            {history.notes && (
+                              <div className="text-xs">
+                                <span className="text-muted-foreground">Notes: </span>
+                                <p className="text-foreground mt-1 line-clamp-3">
+                                  {history.notes}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-4 text-center text-sm text-muted-foreground bg-muted/30 rounded-lg">
+                        No previous attempts
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
             )}
           </div>
 
