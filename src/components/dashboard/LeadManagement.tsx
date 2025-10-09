@@ -55,53 +55,56 @@ const getCurrentTimePeriod = (): number => {
 
 const calculateL1Cooldown = (currentPeriod: number, lastContactPeriod: number | null): Date | null => {
   const now = getEffectiveTime();
-  const cooldownDate = new Date(now);
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  const currentTimeInMinutes = hours * 60 + minutes;
   
   // If this is the first contact (no last contact period)
   if (lastContactPeriod === null) {
+    const cooldownDate = new Date(now);
+    
     // Skip current and next period
     if (currentPeriod === 1) {
-      // Current in Period 1, skip Period 2, available in Period 3 (same day)
+      // Current in Period 1, available in Period 3 (same day)
       cooldownDate.setHours(17, 1, 0, 0); // 5:01 PM
-      return cooldownDate;
     } else if (currentPeriod === 2) {
-      // Current in Period 2, skip Period 3, available in Period 1 next day
+      // Current in Period 2, available in Period 1 next day
       cooldownDate.setDate(cooldownDate.getDate() + 1);
       cooldownDate.setHours(9, 30, 0, 0); // 9:30 AM next day
-      return cooldownDate;
     } else if (currentPeriod === 3) {
-      // Current in Period 3, skip Period 1 next day, available in Period 2 next day
+      // Current in Period 3, available in Period 2 next day
       cooldownDate.setDate(cooldownDate.getDate() + 1);
       cooldownDate.setHours(12, 1, 0, 0); // 12:01 PM next day
-      return cooldownDate;
     }
+    
+    return cooldownDate;
   }
   
-  // For subsequent contacts, ensure we don't call in same period consecutively
-  // and follow the skip pattern
+  // For subsequent contacts, ensure we follow the skip pattern
+  const cooldownDate = new Date(now);
+  
   if (lastContactPeriod === 1) {
-    // Last was Period 1, next should be Period 3 (same day if possible, else next day)
-    if (currentPeriod < 3) {
-      cooldownDate.setHours(17, 1, 0, 0); // 5:01 PM same day
+    // Last was Period 1, next should be Period 3
+    // Check if Period 3 start time (17:01) has passed today
+    if (currentTimeInMinutes < 1021) {
+      // Haven't reached Period 3 yet, set to today 5:01 PM
+      cooldownDate.setHours(17, 1, 0, 0);
     } else {
-      // Already in or past Period 3, go to next day Period 3
+      // Period 3 has started or passed, set to tomorrow 5:01 PM
       cooldownDate.setDate(cooldownDate.getDate() + 1);
       cooldownDate.setHours(17, 1, 0, 0);
     }
-    return cooldownDate;
   } else if (lastContactPeriod === 2) {
     // Last was Period 2, next should be Period 1 next day
     cooldownDate.setDate(cooldownDate.getDate() + 1);
     cooldownDate.setHours(9, 30, 0, 0);
-    return cooldownDate;
   } else if (lastContactPeriod === 3) {
     // Last was Period 3, next should be Period 2 next day
     cooldownDate.setDate(cooldownDate.getDate() + 1);
     cooldownDate.setHours(12, 1, 0, 0);
-    return cooldownDate;
   }
   
-  return null;
+  return cooldownDate;
 };
 
 export function LeadManagement() {

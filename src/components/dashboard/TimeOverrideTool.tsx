@@ -12,8 +12,8 @@ export function TimeOverrideTool() {
   const [currentOverride, setCurrentOverride] = useState<Date | null>(null);
   const [currentPeriod, setCurrentPeriod] = useState(0);
 
+  // Load existing override from localStorage on mount
   useEffect(() => {
-    // Load existing override from localStorage
     const stored = localStorage.getItem('timeOverride');
     if (stored) {
       const date = new Date(stored);
@@ -21,8 +21,10 @@ export function TimeOverrideTool() {
       setOverrideDate(date.toISOString().split('T')[0]);
       setOverrideTime(date.toTimeString().slice(0, 5));
     }
+  }, []);
 
-    // Update current period display
+  // Update current period display
+  useEffect(() => {
     const updatePeriod = () => {
       const now = getEffectiveTime();
       const hours = now.getHours();
@@ -38,7 +40,7 @@ export function TimeOverrideTool() {
     updatePeriod();
     const interval = setInterval(updatePeriod, 1000);
     return () => clearInterval(interval);
-  }, [currentOverride]);
+  }, []);
 
   const getEffectiveTime = (): Date => {
     const stored = localStorage.getItem('timeOverride');
