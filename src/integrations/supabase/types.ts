@@ -18,32 +18,38 @@ export type Database = {
         Row: {
           appointment_date: string
           assigned_to: string
+          branch_id: string | null
           created_at: string | null
           created_by: string | null
           id: string
           is_completed: boolean | null
           lead_id: string
           notes: string | null
+          time_slot_id: string | null
         }
         Insert: {
           appointment_date: string
           assigned_to: string
+          branch_id?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
           is_completed?: boolean | null
           lead_id: string
           notes?: string | null
+          time_slot_id?: string | null
         }
         Update: {
           appointment_date?: string
           assigned_to?: string
+          branch_id?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
           is_completed?: boolean | null
           lead_id?: string
           notes?: string | null
+          time_slot_id?: string | null
         }
         Relationships: [
           {
@@ -51,6 +57,13 @@ export type Database = {
             columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
             referencedColumns: ["id"]
           },
           {
@@ -67,7 +80,79 @@ export type Database = {
             referencedRelation: "leads"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "appointments_time_slot_id_fkey"
+            columns: ["time_slot_id"]
+            isOneToOne: false
+            referencedRelation: "time_slots"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      branch_working_hours: {
+        Row: {
+          branch_id: string
+          created_at: string | null
+          day_of_week: number
+          end_time: string
+          id: string
+          is_active: boolean | null
+          start_time: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string | null
+          day_of_week: number
+          end_time: string
+          id?: string
+          is_active?: boolean | null
+          start_time: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string | null
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          is_active?: boolean | null
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_working_hours_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      branches: {
+        Row: {
+          address: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          address: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       customers: {
         Row: {
@@ -363,6 +448,91 @@ export type Database = {
         }
         Relationships: []
       }
+      services_products: {
+        Row: {
+          branch_id: string
+          category: string
+          code: string
+          created_at: string | null
+          id: string
+          name: string
+          number_of_treatments: number | null
+          price: number
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          branch_id: string
+          category: string
+          code: string
+          created_at?: string | null
+          id?: string
+          name: string
+          number_of_treatments?: number | null
+          price: number
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          branch_id?: string
+          category?: string
+          code?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          number_of_treatments?: number | null
+          price?: number
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_products_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_slots: {
+        Row: {
+          booked_count: number | null
+          branch_id: string
+          created_at: string | null
+          id: string
+          max_capacity: number | null
+          slot_date: string
+          slot_time: string
+        }
+        Insert: {
+          booked_count?: number | null
+          branch_id: string
+          created_at?: string | null
+          id?: string
+          max_capacity?: number | null
+          slot_date: string
+          slot_time: string
+        }
+        Update: {
+          booked_count?: number | null
+          branch_id?: string
+          created_at?: string | null
+          id?: string
+          max_capacity?: number | null
+          slot_date?: string
+          slot_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_slots_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -397,6 +567,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_time_slots_for_branch: {
+        Args: { _branch_id: string; _days_ahead?: number }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
