@@ -677,7 +677,7 @@ export function LeadManagement() {
                           </div>
 
                           <div className="space-y-2">
-                            <Label htmlFor="callback-time">Time (Vietnam Time: 10am - 7pm) *</Label>
+                            <Label htmlFor="callback-time">Time (Philippines Time: 10am - 7pm) *</Label>
                             <Select value={callbackTime} onValueChange={setCallbackTime}>
                               <SelectTrigger id="callback-time">
                                 <SelectValue />

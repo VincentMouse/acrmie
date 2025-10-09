@@ -356,7 +356,7 @@ export function LeadIngestion() {
                     <Label htmlFor="leadGenDate">Lead Generation Date</Label>
                     <Input
                       id="leadGenDate"
-                      value={new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })}
+                      value={new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })}
                       readOnly
                       disabled
                       className="bg-muted"

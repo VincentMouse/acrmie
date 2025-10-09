@@ -172,7 +172,7 @@ export function MessengerLeadIngestion() {
                   <Label htmlFor="messenger-leadGenDate">Lead Generation Date</Label>
                   <Input
                     id="messenger-leadGenDate"
-                    value={new Date().toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })}
+                    value={new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })}
                     readOnly
                     disabled
                     className="bg-muted"
