@@ -125,6 +125,7 @@ export function LeadManagement() {
   const [callbackDate, setCallbackDate] = useState<Date | undefined>(undefined);
   const [callbackTime, setCallbackTime] = useState<string>('10:00');
   const [assignTo, setAssignTo] = useState<'self' | 'team'>('self');
+  const [callBackIn, setCallBackIn] = useState<string>('');
   const [showTimeOverride, setShowTimeOverride] = useState(false);
   const [showNoLeadsDialog, setShowNoLeadsDialog] = useState(false);
   const [showWipeConfirmDialog, setShowWipeConfirmDialog] = useState(false);
@@ -1060,6 +1061,24 @@ export function LeadManagement() {
                         </>
                       )}
 
+                      {/* L5 Specific Fields */}
+                      {statusUpdate === 'status_5' && (
+                        <div className="space-y-2">
+                          <Label htmlFor="call-back-in">Call Back In *</Label>
+                          <Select value={callBackIn} onValueChange={setCallBackIn}>
+                            <SelectTrigger id="call-back-in">
+                              <SelectValue placeholder="Select timeframe" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1_day">1 Days</SelectItem>
+                              <SelectItem value="3_days">3 Days</SelectItem>
+                              <SelectItem value="1_week">1 Week</SelectItem>
+                              <SelectItem value="1_month">1 Month</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       <div className="space-y-2">
                         <Label htmlFor="call-notes">Call Notes</Label>
                         <Textarea
@@ -1090,6 +1109,7 @@ export function LeadManagement() {
                 setCallbackDate(undefined);
                 setCallbackTime('10:00');
                 setAssignTo('self');
+                setCallBackIn('');
               }}
             >
               Cancel
@@ -1100,7 +1120,8 @@ export function LeadManagement() {
                 !callOutcome || 
                 !statusUpdate || 
                 submitCallMutation.isPending ||
-                (statusUpdate === 'status_2' && (!callbackDate || !callbackTime))
+                (statusUpdate === 'status_2' && (!callbackDate || !callbackTime)) ||
+                (statusUpdate === 'status_5' && !callBackIn)
               }
             >
               Submit Call
