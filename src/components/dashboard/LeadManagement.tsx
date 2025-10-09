@@ -273,31 +273,6 @@ export function LeadManagement() {
     },
   });
 
-  const clearAssignedLeadsMutation = useMutation({
-    mutationFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { error } = await supabase
-        .from('leads')
-        .update({ assigned_to: null })
-        .eq('assigned_to', user.id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      toast({ title: 'Leads cleared', description: 'All assigned leads have been cleared' });
-    },
-    onError: (error: any) => {
-      toast({ 
-        title: 'Failed to clear leads', 
-        description: error.message, 
-        variant: 'destructive' 
-      });
-    },
-  });
-
   const updateSettingMutation = useMutation({
     mutationFn: async ({ settingKey, value }: { settingKey: string; value: number }) => {
       if (value <= 0) {
@@ -615,23 +590,12 @@ export function LeadManagement() {
           
           {isLeadManagementPage ? (
             isTeleSales && (
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => getLeadMutation.mutate()}
-                  disabled={getLeadMutation.isPending || (leads && leads.length > 0)}
-                >
-                  Get Lead
-                </Button>
-                {leads && leads.length > 0 && (
-                  <Button 
-                    variant="outline"
-                    onClick={() => clearAssignedLeadsMutation.mutate()}
-                    disabled={clearAssignedLeadsMutation.isPending}
-                  >
-                    Clear Assigned Leads
-                  </Button>
-                )}
-              </div>
+              <Button 
+                onClick={() => getLeadMutation.mutate()}
+                disabled={getLeadMutation.isPending || (leads && leads.length > 0)}
+              >
+                Get Lead
+              </Button>
             )
           ) : (
             <Select value={statusFilter} onValueChange={setStatusFilter}>
