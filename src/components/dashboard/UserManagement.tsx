@@ -57,6 +57,17 @@ export function UserManagement() {
 
   const createUserMutation = useMutation({
     mutationFn: async (data: any) => {
+      // Check for duplicate email first
+      const { data: existingUser } = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('email', data.email)
+        .single();
+
+      if (existingUser) {
+        throw new Error('A user with this email already exists');
+      }
+
       // Call edge function to create user without signing in
       const { data: result, error } = await supabase.functions.invoke('create-user', {
         body: {
@@ -67,8 +78,14 @@ export function UserManagement() {
         }
       });
 
-      if (error) throw error;
-      if (!result?.success) throw new Error(result?.error || 'User creation failed');
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message || 'Failed to create user');
+      }
+      
+      if (!result?.success) {
+        throw new Error(result?.error || 'User creation failed');
+      }
       
       return result;
     },
