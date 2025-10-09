@@ -146,15 +146,27 @@ export function Customers() {
             >
               <Card className="overflow-hidden">
                 <CollapsibleTrigger className="w-full">
-                  <div className="flex items-center px-4 py-2 hover:bg-muted/50 transition-colors">
-                    {isExpanded ? (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 mr-3" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mr-3" />
-                    )}
-                    <div className="flex items-center gap-8 flex-1">
-                      <h3 className="font-semibold text-sm w-48">{customer.name}</h3>
-                      <p className="text-sm text-muted-foreground w-32">{customer.phone}</p>
+                  <div className="flex items-center justify-between px-4 py-2 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center flex-1 min-w-0">
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0 mr-3" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 mr-3" />
+                      )}
+                      <div className="flex items-center gap-8 flex-1 min-w-0">
+                        <h3 className="font-semibold text-sm w-48 truncate">{customer.name}</h3>
+                        <p className="text-sm text-muted-foreground w-32 flex-shrink-0">{customer.phone}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground ml-4 flex-shrink-0">
+                      {customer.email ? (
+                        <>
+                          <Mail className="h-3 w-3" />
+                          <span className="truncate max-w-[200px]">{customer.email}</span>
+                        </>
+                      ) : (
+                        <span className="text-xs italic">No email</span>
+                      )}
                     </div>
                   </div>
                 </CollapsibleTrigger>
