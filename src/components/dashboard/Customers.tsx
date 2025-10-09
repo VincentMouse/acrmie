@@ -1,17 +1,21 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { ChevronDown, ChevronRight, Mail, Check, X } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 type Customer = {
   id: string;
   name: string;
   phone: string;
   address: string | null;
+  email: string | null;
   created_at: string;
 };
 
@@ -27,6 +31,10 @@ type Lead = {
 
 export function Customers() {
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
+  const [editingEmail, setEditingEmail] = useState<string | null>(null);
+  const [emailValue, setEmailValue] = useState('');
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: customers, isLoading } = useQuery({
     queryKey: ['customers'],
@@ -64,6 +72,55 @@ export function Customers() {
       return grouped;
     },
   });
+
+  const updateEmailMutation = useMutation({
+    mutationFn: async ({ customerId, email }: { customerId: string; email: string }) => {
+      const { error } = await supabase
+        .from('customers')
+        .update({ email })
+        .eq('id', customerId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast({
+        title: 'Success',
+        description: 'Email updated successfully',
+      });
+      setEditingEmail(null);
+      setEmailValue('');
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to update email',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleEditEmail = (customerId: string, currentEmail: string | null) => {
+    setEditingEmail(customerId);
+    setEmailValue(currentEmail || '');
+  };
+
+  const handleSaveEmail = (customerId: string) => {
+    if (emailValue.trim() && emailValue.includes('@')) {
+      updateEmailMutation.mutate({ customerId, email: emailValue.trim() });
+    } else {
+      toast({
+        title: 'Invalid Email',
+        description: 'Please enter a valid email address',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCancelEmail = () => {
+    setEditingEmail(null);
+    setEmailValue('');
+  };
 
   if (isLoading) {
     return (
@@ -104,22 +161,62 @@ export function Customers() {
             >
               <Card className="overflow-hidden">
                 <CollapsibleTrigger className="w-full">
-                  <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-between p-3 hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
                       {isExpanded ? (
-                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       ) : (
-                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       )}
-                      <div className="text-left">
-                        <h3 className="font-semibold">{customer.name}</h3>
-                        <p className="text-sm text-muted-foreground">{customer.phone}</p>
-                        {customer.address && (
-                          <p className="text-xs text-muted-foreground">{customer.address}</p>
-                        )}
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="text-left min-w-0">
+                          <h3 className="font-semibold text-sm truncate">{customer.name}</h3>
+                          <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                        </div>
+                        <div className="flex items-center gap-2 ml-auto" onClick={(e) => e.stopPropagation()}>
+                          {editingEmail === customer.id ? (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="email"
+                                value={emailValue}
+                                onChange={(e) => setEmailValue(e.target.value)}
+                                placeholder="Enter email"
+                                className="h-8 w-48 text-sm"
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handleSaveEmail(customer.id)}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={handleCancelEmail}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 gap-2 text-xs"
+                              onClick={() => handleEditEmail(customer.id, customer.email)}
+                            >
+                              <Mail className="h-3 w-3" />
+                              {customer.email || 'Add email'}
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                    <Badge variant="secondary">{customerLeads.length} Leads</Badge>
+                    <Badge variant="secondary" className="ml-2 flex-shrink-0 text-xs">
+                      {customerLeads.length} Leads
+                    </Badge>
                   </div>
                 </CollapsibleTrigger>
 
