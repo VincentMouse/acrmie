@@ -557,7 +557,7 @@ export function LeadManagement() {
     <div className="space-y-6">
       {/* Lead Call Modal */}
       <Dialog open={isLeadModalOpen} onOpenChange={setIsLeadModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Phone className="h-5 w-5" />
@@ -568,167 +568,169 @@ export function LeadManagement() {
             </DialogDescription>
           </DialogHeader>
           
-          {pulledLead && (
-            <div className="space-y-6">
-              {/* Customer Details and Timer - Same Row */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Customer Details */}
-                <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">
-                      {pulledLead.first_name} {pulledLead.last_name}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-mono">{pulledLead.phone}</span>
-                  </div>
-                </div>
-
-                {/* Timer */}
-                <div className="flex items-center justify-center p-4 bg-primary/10 rounded-lg">
-                  <div className="text-center">
-                    <Clock className="h-6 w-6 mx-auto mb-2 text-primary" />
-                    <div className="text-3xl font-bold text-primary">{formatTime(elapsedTime)}</div>
-                    <p className="text-sm text-muted-foreground mt-1">Call Duration</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Call Form */}
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="status-update">Status Update *</Label>
-                  <Select value={statusUpdate} onValueChange={setStatusUpdate}>
-                    <SelectTrigger id="status-update">
-                      <SelectValue placeholder="Select new status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AVAILABLE_STATUSES.map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Show additional fields only after status is selected */}
-                {statusUpdate && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="call-outcome">Call Outcome *</Label>
-                      <Select 
-                        value={callOutcome} 
-                        onValueChange={setCallOutcome}
-                        disabled={statusUpdate === 'status_2'}
-                      >
-                        <SelectTrigger id="call-outcome">
-                          <SelectValue placeholder="Select outcome" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CALL_OUTCOMES.map((outcome) => (
-                            <SelectItem key={outcome} value={outcome}>
-                              {outcome}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+          <div className="overflow-y-auto flex-1 px-1">
+            {pulledLead && (
+              <div className="space-y-6">
+                {/* Customer Details and Timer - Same Row */}
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Customer Details */}
+                  <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">
+                        {pulledLead.first_name} {pulledLead.last_name}
+                      </span>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-mono">{pulledLead.phone}</span>
+                    </div>
+                  </div>
 
-                    {/* L2 Specific Fields */}
-                    {statusUpdate === 'status_2' && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="callback-date">Time of Callback *</Label>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                id="callback-date"
-                                variant="outline"
-                                className={cn(
-                                  "w-full justify-start text-left font-normal",
-                                  !callbackDate && "text-muted-foreground"
-                                )}
-                              >
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {callbackDate ? format(callbackDate, 'PPP') : "Pick a date"}
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                              <Calendar
-                                mode="single"
-                                selected={callbackDate}
-                                onSelect={setCallbackDate}
-                                disabled={(date) => date < new Date()}
-                                initialFocus
-                                className="pointer-events-auto"
-                              />
-                            </PopoverContent>
-                          </Popover>
-                        </div>
+                  {/* Timer */}
+                  <div className="flex items-center justify-center p-4 bg-primary/10 rounded-lg">
+                    <div className="text-center">
+                      <Clock className="h-6 w-6 mx-auto mb-2 text-primary" />
+                      <div className="text-3xl font-bold text-primary">{formatTime(elapsedTime)}</div>
+                      <p className="text-sm text-muted-foreground mt-1">Call Duration</p>
+                    </div>
+                  </div>
+                </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="callback-time">Time (Vietnam Time: 10am - 7pm) *</Label>
-                          <Select value={callbackTime} onValueChange={setCallbackTime}>
-                            <SelectTrigger id="callback-time">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Array.from({ length: 10 }, (_, i) => {
-                                const hour = 10 + i;
-                                return (
-                                  <SelectItem key={`${hour}:00`} value={`${hour}:00`}>
-                                    {hour}:00
-                                  </SelectItem>
-                                );
-                              })}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                {/* Call Form */}
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="status-update">Status Update *</Label>
+                    <Select value={statusUpdate} onValueChange={setStatusUpdate}>
+                      <SelectTrigger id="status-update">
+                        <SelectValue placeholder="Select new status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {AVAILABLE_STATUSES.map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="assign-to">Assign To *</Label>
-                          <Select 
-                            value={assignTo} 
-                            onValueChange={(val) => setAssignTo(val as 'self' | 'team')}
-                            disabled={selfManagedL2Count >= 5 && assignTo === 'self'}
-                          >
-                            <SelectTrigger id="assign-to">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="self" disabled={selfManagedL2Count >= 5}>
-                                Self {selfManagedL2Count >= 5 && '(Limit reached: 5/5)'}
+                  {/* Show additional fields only after status is selected */}
+                  {statusUpdate && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="call-outcome">Call Outcome *</Label>
+                        <Select 
+                          value={callOutcome} 
+                          onValueChange={setCallOutcome}
+                          disabled={statusUpdate === 'status_2'}
+                        >
+                          <SelectTrigger id="call-outcome">
+                            <SelectValue placeholder="Select outcome" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CALL_OUTCOMES.map((outcome) => (
+                              <SelectItem key={outcome} value={outcome}>
+                                {outcome}
                               </SelectItem>
-                              <SelectItem value="team">All of Team</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {selfManagedL2Count >= 5 && (
-                            <p className="text-sm text-destructive">
-                              You have reached the maximum of 5 self-managed callback leads
-                            </p>
-                          )}
-                        </div>
-                      </>
-                    )}
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="call-notes">Call Notes</Label>
-                      <Textarea
-                        id="call-notes"
-                        placeholder="Enter any additional notes about the call..."
-                        value={callNotes}
-                        onChange={(e) => setCallNotes(e.target.value)}
-                        rows={3}
-                      />
-                    </div>
-                  </>
-                )}
+                      {/* L2 Specific Fields */}
+                      {statusUpdate === 'status_2' && (
+                        <>
+                          <div className="space-y-2">
+                            <Label htmlFor="callback-date">Time of Callback *</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  id="callback-date"
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full justify-start text-left font-normal",
+                                    !callbackDate && "text-muted-foreground"
+                                  )}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {callbackDate ? format(callbackDate, 'PPP') : "Pick a date"}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={callbackDate}
+                                  onSelect={setCallbackDate}
+                                  disabled={(date) => date < new Date()}
+                                  initialFocus
+                                  className="pointer-events-auto"
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="callback-time">Time (Vietnam Time: 10am - 7pm) *</Label>
+                            <Select value={callbackTime} onValueChange={setCallbackTime}>
+                              <SelectTrigger id="callback-time">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Array.from({ length: 10 }, (_, i) => {
+                                  const hour = 10 + i;
+                                  return (
+                                    <SelectItem key={`${hour}:00`} value={`${hour}:00`}>
+                                      {hour}:00
+                                    </SelectItem>
+                                  );
+                                })}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="assign-to">Assign To *</Label>
+                            <Select 
+                              value={assignTo} 
+                              onValueChange={(val) => setAssignTo(val as 'self' | 'team')}
+                              disabled={selfManagedL2Count >= 5 && assignTo === 'self'}
+                            >
+                              <SelectTrigger id="assign-to">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="self" disabled={selfManagedL2Count >= 5}>
+                                  Self {selfManagedL2Count >= 5 && '(Limit reached: 5/5)'}
+                                </SelectItem>
+                                <SelectItem value="team">All of Team</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {selfManagedL2Count >= 5 && (
+                              <p className="text-sm text-destructive">
+                                You have reached the maximum of 5 self-managed callback leads
+                              </p>
+                            )}
+                          </div>
+                        </>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label htmlFor="call-notes">Call Notes</Label>
+                        <Textarea
+                          id="call-notes"
+                          placeholder="Enter any additional notes about the call..."
+                          value={callNotes}
+                          onChange={(e) => setCallNotes(e.target.value)}
+                          rows={3}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <DialogFooter>
             <Button
