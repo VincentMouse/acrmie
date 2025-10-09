@@ -807,10 +807,18 @@ export function LeadManagement() {
     'Can Not Be Reached'
   ];
 
+  const L3_CALL_OUTCOMES = [
+    'Not Interested',
+    'Session Already Booked'
+  ];
+
   // Get filtered call outcomes based on status
   const getCallOutcomes = () => {
     if (statusUpdate === 'status_1') {
       return L1_CALL_OUTCOMES;
+    }
+    if (statusUpdate === 'status_3') {
+      return L3_CALL_OUTCOMES;
     }
     return CALL_OUTCOMES;
   };
