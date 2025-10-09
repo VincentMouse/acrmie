@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useToast } from '@/hooks/use-toast';
+import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -22,12 +23,18 @@ const STATUS_LABELS = {
 export function LeadManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const location = useLocation();
   const { isTeleSales, isAdmin, isSalesManager } = useUserRole();
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  
+  // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
+  const isLeadManagementPage = location.pathname === '/dashboard/lead-management';
 
   const { data: leads, isLoading } = useQuery({
-    queryKey: ['leads', statusFilter],
+    queryKey: ['leads', statusFilter, isLeadManagementPage],
     queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
       let query = supabase
         .from('leads')
         .select(`
@@ -36,6 +43,11 @@ export function LeadManagement() {
           assigned:profiles!leads_assigned_to_fkey(full_name)
         `)
         .order('created_at', { ascending: false });
+
+      // For Lead Management page, only show leads assigned to current user
+      if (isLeadManagementPage && user) {
+        query = query.eq('assigned_to', user.id);
+      }
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter as any);
@@ -94,7 +106,9 @@ export function LeadManagement() {
   return (
     <Card className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">Lead Management</h2>
+        <h2 className="text-2xl font-bold">
+          {isLeadManagementPage ? 'My Assigned Leads' : 'Lead Management'}
+        </h2>
         
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-64">
