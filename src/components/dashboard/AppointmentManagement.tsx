@@ -10,12 +10,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Calendar } from 'lucide-react';
+import { Calendar, Phone } from 'lucide-react';
 import { differenceInDays, format } from 'date-fns';
+import { useAuth } from '@/hooks/useAuth';
 
 export function AppointmentManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [appointmentDate, setAppointmentDate] = useState('');
@@ -38,7 +40,8 @@ export function AppointmentManagement() {
           ),
           branch:branches(name),
           time_slot:time_slots(slot_date, slot_time),
-          assigned:profiles!appointments_assigned_to_fkey(full_name)
+          assigned:profiles!appointments_assigned_to_fkey(full_name),
+          processing:profiles!appointments_processing_by_fkey(full_name)
         `)
         .order('appointment_date', { ascending: true });
 
@@ -58,6 +61,56 @@ export function AppointmentManagement() {
 
       if (error) throw error;
       return data;
+    },
+  });
+
+  const claimAppointmentMutation = useMutation({
+    mutationFn: async (appointmentId: string) => {
+      if (!user?.id) throw new Error('Not authenticated');
+
+      // Use a transaction-like update with WHERE clause to handle race conditions
+      const { data, error } = await supabase
+        .from('appointments')
+        .update({
+          processing_by: user.id,
+          processing_at: new Date().toISOString(),
+        })
+        .eq('id', appointmentId)
+        .is('processing_by', null) // Only update if not already claimed
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      // If no data returned, someone else claimed it first
+      if (!data) {
+        throw new Error('RACE_CONDITION');
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      toast({
+        title: 'Call started',
+        description: 'You are now processing this appointment',
+      });
+    },
+    onError: (error: any) => {
+      if (error.message === 'RACE_CONDITION') {
+        toast({
+          title: 'Already claimed',
+          description: 'Another CS is already processing this appointment',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to claim appointment',
+          variant: 'destructive',
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
   });
 
@@ -284,7 +337,25 @@ export function AppointmentManagement() {
                       {appointment.reminder_status}
                     </Badge>
                   </TableCell>
-                  <TableCell>{appointment.assigned?.full_name || '-'}</TableCell>
+                  <TableCell>
+                    {appointment.processing_by ? (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default">
+                          Processing by {appointment.processing?.full_name}
+                        </Badge>
+                      </div>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => claimAppointmentMutation.mutate(appointment.id)}
+                        disabled={claimAppointmentMutation.isPending}
+                      >
+                        <Phone className="w-4 h-4 mr-2" />
+                        Call
+                      </Button>
+                    )}
+                  </TableCell>
                 </TableRow>
               );
             })}

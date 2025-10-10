@@ -26,6 +26,8 @@ export type Database = {
           is_completed: boolean | null
           lead_id: string
           notes: string | null
+          processing_at: string | null
+          processing_by: string | null
           reminder_status: string
           time_slot_id: string | null
         }
@@ -40,6 +42,8 @@ export type Database = {
           is_completed?: boolean | null
           lead_id: string
           notes?: string | null
+          processing_at?: string | null
+          processing_by?: string | null
           reminder_status?: string
           time_slot_id?: string | null
         }
@@ -54,6 +58,8 @@ export type Database = {
           is_completed?: boolean | null
           lead_id?: string
           notes?: string | null
+          processing_at?: string | null
+          processing_by?: string | null
           reminder_status?: string
           time_slot_id?: string | null
         }
