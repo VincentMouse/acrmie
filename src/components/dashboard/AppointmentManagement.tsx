@@ -375,6 +375,7 @@ export function AppointmentManagement() {
               <TableHead>Marketer Name</TableHead>
               <TableHead>Notes</TableHead>
               <TableHead>Confirmation Status</TableHead>
+              <TableHead>Assigned To</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -417,6 +418,11 @@ export function AppointmentManagement() {
                     <div className="truncate" title={appointment.notes || ''}>
                       {appointment.notes || '-'}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={appointment.confirmation_status === 'confirmed' ? 'default' : 'secondary'}>
+                      {appointment.confirmation_status}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     {appointment.processing_by ? (
