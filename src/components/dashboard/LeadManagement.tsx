@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Clock, Settings, Phone, User, Timer, CalendarIcon, TestTube, Trash2, Search } from 'lucide-react';
+import { Clock, Settings, Phone, User, Timer, CalendarIcon, TestTube, Trash2, Search, Check, ChevronsUpDown } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { format, setHours, setMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { TimeOverrideTool } from './TimeOverrideTool';
@@ -140,10 +141,15 @@ export function LeadManagement() {
   const [expectation, setExpectation] = useState<string>('');
   const [budget, setBudget] = useState<string>('');
   const [suggestedService, setSuggestedService] = useState<string>('');
+  const [suggestedServiceDetails, setSuggestedServiceDetails] = useState<{price: number, treatments: number} | null>(null);
   const [additionalNotes, setAdditionalNotes] = useState<string>('');
   // Follow up session fields
   const [concurrentService, setConcurrentService] = useState<string>('');
+  const [concurrentServiceDetails, setConcurrentServiceDetails] = useState<{price: number, treatments: number} | null>(null);
   const [sessionNumber, setSessionNumber] = useState<string>('');
+  // Service search states
+  const [openSuggestedServiceCombo, setOpenSuggestedServiceCombo] = useState(false);
+  const [openConcurrentServiceCombo, setOpenConcurrentServiceCombo] = useState(false);
 
   // Fetch lead history for the current lead
   const { data: leadHistory } = useQuery({
@@ -228,6 +234,24 @@ export function LeadManagement() {
       return data?.filter(slot => (slot.booked_count || 0) < (slot.max_capacity || 7)) || [];
     },
     enabled: !!selectedBranch && !!appointmentDate,
+  });
+
+  // Fetch services/products for selected branch
+  const { data: branchServices } = useQuery({
+    queryKey: ['branch-services', selectedBranch],
+    queryFn: async () => {
+      if (!selectedBranch) return [];
+      
+      const { data, error } = await supabase
+        .from('services_products')
+        .select('*')
+        .eq('branch_id', selectedBranch)
+        .order('name');
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedBranch,
   });
 
   const { data: leads, isLoading } = useQuery({
@@ -531,8 +555,8 @@ export function LeadManagement() {
         status: statusUpdate as any,
         notes: statusUpdate === 'status_6' 
           ? (customerType === 'consultation' 
-              ? `[Consultation] Concern: ${concern} | Expectation: ${expectation} | Budget: ${budget} | Suggested Service: ${suggestedService}${additionalNotes ? ` | Notes: ${additionalNotes}` : ''}`
-              : `[Follow-up Session] Concurrent Service: ${concurrentService} | Session Number: ${sessionNumber}`)
+              ? `[Consultation] Concern: ${concern} | Expectation: ${expectation} | Budget: ${budget} | Suggested Service: ${branchServices?.find(s => s.id === suggestedService)?.name || suggestedService}${additionalNotes ? ` | Notes: ${additionalNotes}` : ''}`
+              : `[Follow-up Session] Concurrent Service: ${branchServices?.find(s => s.id === concurrentService)?.name || concurrentService} | Session Number: ${sessionNumber}`)
           : (callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`),
       };
 
@@ -1275,13 +1299,76 @@ export function LeadManagement() {
 
                               <div className="space-y-2">
                                 <Label htmlFor="suggested-service">Suggested Service *</Label>
-                                <Input
-                                  id="suggested-service"
-                                  placeholder="Enter suggested service..."
-                                  value={suggestedService}
-                                  onChange={(e) => setSuggestedService(e.target.value)}
-                                />
+                                <Popover open={openSuggestedServiceCombo} onOpenChange={setOpenSuggestedServiceCombo}>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      role="combobox"
+                                      aria-expanded={openSuggestedServiceCombo}
+                                      className="w-full justify-between"
+                                      disabled={!selectedBranch}
+                                    >
+                                      {suggestedService
+                                        ? branchServices?.find((service) => service.id === suggestedService)?.name
+                                        : "Select service..."}
+                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-full p-0" align="start">
+                                    <Command>
+                                      <CommandInput placeholder="Search service..." />
+                                      <CommandList>
+                                        <CommandEmpty>No service found.</CommandEmpty>
+                                        <CommandGroup>
+                                          {branchServices?.map((service) => (
+                                            <CommandItem
+                                              key={service.id}
+                                              value={service.name}
+                                              onSelect={() => {
+                                                setSuggestedService(service.id);
+                                                setSuggestedServiceDetails({
+                                                  price: service.price,
+                                                  treatments: service.number_of_treatments || 0
+                                                });
+                                                setOpenSuggestedServiceCombo(false);
+                                              }}
+                                            >
+                                              <Check
+                                                className={cn(
+                                                  "mr-2 h-4 w-4",
+                                                  suggestedService === service.id ? "opacity-100" : "opacity-0"
+                                                )}
+                                              />
+                                              {service.name} - {service.category}
+                                            </CommandItem>
+                                          ))}
+                                        </CommandGroup>
+                                      </CommandList>
+                                    </Command>
+                                  </PopoverContent>
+                                </Popover>
                               </div>
+
+                              {suggestedServiceDetails && (
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label>Price</Label>
+                                    <Input
+                                      value={suggestedServiceDetails.price}
+                                      readOnly
+                                      className="bg-muted"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Number of Treatments</Label>
+                                    <Input
+                                      value={suggestedServiceDetails.treatments || 'N/A'}
+                                      readOnly
+                                      className="bg-muted"
+                                    />
+                                  </div>
+                                </div>
+                              )}
 
                               <div className="space-y-2">
                                 <Label htmlFor="additional-notes">Additional Notes</Label>
@@ -1303,13 +1390,76 @@ export function LeadManagement() {
                               
                               <div className="space-y-2">
                                 <Label htmlFor="concurrent-service">Concurrent Service *</Label>
-                                <Input
-                                  id="concurrent-service"
-                                  placeholder="Enter concurrent service..."
-                                  value={concurrentService}
-                                  onChange={(e) => setConcurrentService(e.target.value)}
-                                />
+                                <Popover open={openConcurrentServiceCombo} onOpenChange={setOpenConcurrentServiceCombo}>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      role="combobox"
+                                      aria-expanded={openConcurrentServiceCombo}
+                                      className="w-full justify-between"
+                                      disabled={!selectedBranch}
+                                    >
+                                      {concurrentService
+                                        ? branchServices?.find((service) => service.id === concurrentService)?.name
+                                        : "Select service..."}
+                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-full p-0" align="start">
+                                    <Command>
+                                      <CommandInput placeholder="Search service..." />
+                                      <CommandList>
+                                        <CommandEmpty>No service found.</CommandEmpty>
+                                        <CommandGroup>
+                                          {branchServices?.map((service) => (
+                                            <CommandItem
+                                              key={service.id}
+                                              value={service.name}
+                                              onSelect={() => {
+                                                setConcurrentService(service.id);
+                                                setConcurrentServiceDetails({
+                                                  price: service.price,
+                                                  treatments: service.number_of_treatments || 0
+                                                });
+                                                setOpenConcurrentServiceCombo(false);
+                                              }}
+                                            >
+                                              <Check
+                                                className={cn(
+                                                  "mr-2 h-4 w-4",
+                                                  concurrentService === service.id ? "opacity-100" : "opacity-0"
+                                                )}
+                                              />
+                                              {service.name} - {service.category}
+                                            </CommandItem>
+                                          ))}
+                                        </CommandGroup>
+                                      </CommandList>
+                                    </Command>
+                                  </PopoverContent>
+                                </Popover>
                               </div>
+
+                              {concurrentServiceDetails && (
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label>Price</Label>
+                                    <Input
+                                      value={concurrentServiceDetails.price}
+                                      readOnly
+                                      className="bg-muted"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>Number of Treatments</Label>
+                                    <Input
+                                      value={concurrentServiceDetails.treatments || 'N/A'}
+                                      readOnly
+                                      className="bg-muted"
+                                    />
+                                  </div>
+                                </div>
+                              )}
 
                               <div className="space-y-2">
                                 <Label htmlFor="session-number">Session Number *</Label>
@@ -1513,9 +1663,13 @@ export function LeadManagement() {
                 setExpectation('');
                 setBudget('');
                 setSuggestedService('');
+                setSuggestedServiceDetails(null);
                 setAdditionalNotes('');
                 setConcurrentService('');
+                setConcurrentServiceDetails(null);
                 setSessionNumber('');
+                setOpenSuggestedServiceCombo(false);
+                setOpenConcurrentServiceCombo(false);
               }}
             >
               Cancel
