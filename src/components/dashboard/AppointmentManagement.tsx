@@ -28,7 +28,16 @@ export function AppointmentManagement() {
         .from('appointments')
         .select(`
           *,
-          lead:leads(first_name, last_name, phone, email),
+          lead:leads(
+            first_name, 
+            last_name, 
+            phone, 
+            marketer_name,
+            assigned_to,
+            tele_sales:profiles!leads_assigned_to_fkey(full_name)
+          ),
+          branch:branches(name),
+          time_slot:time_slots(slot_date, slot_time),
           assigned:profiles!appointments_assigned_to_fkey(full_name)
         `)
         .order('appointment_date', { ascending: true });
@@ -206,45 +215,76 @@ export function AppointmentManagement() {
         </div>
       )}
 
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Lead Name</TableHead>
-              <TableHead>Phone</TableHead>
+              <TableHead>Customer Name</TableHead>
+              <TableHead>Phone Number</TableHead>
+              <TableHead>Branch</TableHead>
               <TableHead>Appointment Date</TableHead>
-              <TableHead>Assigned To</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead>Appointment Time</TableHead>
+              <TableHead>Service/Product</TableHead>
+              <TableHead>Tele Sale Name</TableHead>
+              <TableHead>Marketer Name</TableHead>
               <TableHead>Notes</TableHead>
+              <TableHead>Confirmation Status</TableHead>
+              <TableHead>Reminder Status</TableHead>
+              <TableHead>Assigned To</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {upcomingAppointments?.map((appointment) => {
               const daysUntil = getDaysUntilAppointment(appointment.appointment_date);
+              
+              // Extract service/product name from notes (it's stored in the format that includes service details)
+              const serviceMatch = appointment.notes?.match(/Suggested Service: ([^\n]+)|Concurrent service: ([^\n]+)/);
+              const serviceName = serviceMatch ? (serviceMatch[1] || serviceMatch[2]) : '-';
+              
               return (
                 <TableRow key={appointment.id}>
                   <TableCell className="font-medium">
                     {appointment.lead?.first_name} {appointment.lead?.last_name}
                   </TableCell>
-                  <TableCell>{appointment.lead?.phone}</TableCell>
+                  <TableCell>{appointment.lead?.phone || '-'}</TableCell>
+                  <TableCell>{appointment.branch?.name || '-'}</TableCell>
                   <TableCell>
-                    {format(new Date(appointment.appointment_date), 'PPp')}
-                    {daysUntil === 0 && (
-                      <Badge variant="destructive" className="ml-2">Today</Badge>
-                    )}
-                    {daysUntil === 1 && (
-                      <Badge variant="default" className="ml-2">Tomorrow</Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {appointment.time_slot?.slot_date 
+                        ? format(new Date(appointment.time_slot.slot_date), 'PPP')
+                        : format(new Date(appointment.appointment_date), 'PPP')}
+                      {daysUntil === 0 && (
+                        <Badge variant="destructive">Today</Badge>
+                      )}
+                      {daysUntil === 1 && (
+                        <Badge variant="default">Tomorrow</Badge>
+                      )}
+                    </div>
                   </TableCell>
-                  <TableCell>{appointment.assigned?.full_name}</TableCell>
                   <TableCell>
-                    <Badge variant={appointment.is_completed ? "secondary" : "default"}>
-                      {appointment.is_completed ? 'Completed' : 'Scheduled'}
+                    {appointment.time_slot?.slot_time 
+                      ? appointment.time_slot.slot_time 
+                      : format(new Date(appointment.appointment_date), 'p')}
+                  </TableCell>
+                  <TableCell>{serviceName}</TableCell>
+                  <TableCell>{appointment.lead?.tele_sales?.full_name || '-'}</TableCell>
+                  <TableCell>{appointment.lead?.marketer_name || '-'}</TableCell>
+                  <TableCell className="max-w-xs">
+                    <div className="truncate" title={appointment.notes || ''}>
+                      {appointment.notes || '-'}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={appointment.confirmation_status === 'confirmed' ? 'default' : 'secondary'}>
+                      {appointment.confirmation_status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="max-w-xs truncate">
-                    {appointment.notes || '-'}
+                  <TableCell>
+                    <Badge variant={appointment.reminder_status === 'sent' ? 'default' : 'secondary'}>
+                      {appointment.reminder_status}
+                    </Badge>
                   </TableCell>
+                  <TableCell>{appointment.assigned?.full_name || '-'}</TableCell>
                 </TableRow>
               );
             })}

@@ -19,36 +19,42 @@ export type Database = {
           appointment_date: string
           assigned_to: string
           branch_id: string | null
+          confirmation_status: string
           created_at: string | null
           created_by: string | null
           id: string
           is_completed: boolean | null
           lead_id: string
           notes: string | null
+          reminder_status: string
           time_slot_id: string | null
         }
         Insert: {
           appointment_date: string
           assigned_to: string
           branch_id?: string | null
+          confirmation_status?: string
           created_at?: string | null
           created_by?: string | null
           id?: string
           is_completed?: boolean | null
           lead_id: string
           notes?: string | null
+          reminder_status?: string
           time_slot_id?: string | null
         }
         Update: {
           appointment_date?: string
           assigned_to?: string
           branch_id?: string | null
+          confirmation_status?: string
           created_at?: string | null
           created_by?: string | null
           id?: string
           is_completed?: boolean | null
           lead_id?: string
           notes?: string | null
+          reminder_status?: string
           time_slot_id?: string | null
         }
         Relationships: [
