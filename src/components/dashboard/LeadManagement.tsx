@@ -881,6 +881,18 @@ export function LeadManagement() {
     return () => window.removeEventListener('timeOverrideChanged', handleTimeOverrideChange);
   }, [queryClient]);
 
+  // Timer state to force re-render of countdown displays
+  const [timerTick, setTimerTick] = useState(0);
+
+  // Update timer tick every second to refresh countdown displays
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTimerTick(prev => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Auto-return expired leads to pool
   useEffect(() => {
     if (!isLeadManagementPage || !isTeleSales || isLeadModalOpen) return;
