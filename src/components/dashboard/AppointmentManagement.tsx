@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -22,7 +22,6 @@ export function AppointmentManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const STALE_MS = 5 * 60 * 1000;
   
   // Schedule appointment modal
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
@@ -400,33 +399,6 @@ export function AppointmentManagement() {
     setIsCallModalOpen(open);
   };
 
-  // Heartbeat to keep the lock fresh while call modal is open
-  useEffect(() => {
-    if (!isCallModalOpen || !callAppointment?.id || !user?.id) return;
-    const interval = setInterval(async () => {
-      try {
-        await supabase
-          .from('appointments')
-          .update({ processing_at: new Date().toISOString() })
-          .eq('id', callAppointment.id)
-          .eq('processing_by', user.id);
-      } catch (e) {
-        // noop
-      }
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [isCallModalOpen, callAppointment?.id, user?.id]);
-
-  // Cleanup any of my own stale locks on mount
-  useEffect(() => {
-    if (!user?.id) return;
-    const threshold = new Date(Date.now() - STALE_MS).toISOString();
-    supabase
-      .from('appointments')
-      .update({ processing_by: null, processing_at: null })
-      .lt('processing_at', threshold)
-      .eq('processing_by', user.id);
-  }, [user?.id]);
   const handleRegisterAppointment = () => {
     if (!viewAppointment || !bookingId.trim()) {
       toast({
@@ -550,8 +522,7 @@ export function AppointmentManagement() {
           <TableBody>
             {upcomingAppointments?.map((appointment) => {
               const isRegistered = !!appointment.booking_id;
-              const isStale = appointment.processing_at ? (new Date(appointment.processing_at).getTime() < Date.now() - STALE_MS) : false;
-              const isProcessing = !!appointment.processing_by && !isStale;
+              const isProcessing = !!appointment.processing_by;
               const serviceName = servicesMap.get(appointment.service_product) || appointment.service_product || '-';
               
               return (
