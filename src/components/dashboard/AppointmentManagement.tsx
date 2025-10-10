@@ -197,6 +197,34 @@ export function AppointmentManagement() {
     },
   });
 
+  const clearAllProcessingMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          processing_by: null,
+          processing_at: null,
+        })
+        .not('processing_by', 'is', null);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      toast({
+        title: 'All processing states cleared',
+        description: 'All appointments are now available for processing',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to clear processing states',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleCreateAppointment = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -242,14 +270,23 @@ export function AppointmentManagement() {
           </p>
         </div>
         
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Calendar className="w-4 h-4 mr-2" />
-              Schedule Appointment
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
+        <div className="flex gap-2">
+          <Button
+            variant="destructive"
+            onClick={() => clearAllProcessingMutation.mutate()}
+            disabled={clearAllProcessingMutation.isPending}
+          >
+            Reset All Processing (Test)
+          </Button>
+          
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Calendar className="w-4 h-4 mr-2" />
+                Schedule Appointment
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
             <DialogHeader>
               <DialogTitle>Schedule New Appointment</DialogTitle>
             </DialogHeader>
@@ -306,6 +343,7 @@ export function AppointmentManagement() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {tomorrowAppointments && tomorrowAppointments.length > 0 && (
