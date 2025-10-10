@@ -31,6 +31,26 @@ export function AppointmentManagement() {
   const [callAppointment, setCallAppointment] = useState<any>(null);
   const [callStatus, setCallStatus] = useState('');
   
+  const [editableFields, setEditableFields] = useState({
+    customerName: '',
+    phone: '',
+    branchId: '',
+    appointmentDate: '',
+    appointmentTime: '',
+    serviceProduct: '',
+    notes: ''
+  });
+  
+  const [fieldEditStates, setFieldEditStates] = useState({
+    customerName: false,
+    phone: false,
+    branch: false,
+    appointmentDate: false,
+    appointmentTime: false,
+    serviceProduct: false,
+    notes: false
+  });
+  
   // View modal
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [viewAppointment, setViewAppointment] = useState<any>(null);
@@ -72,6 +92,20 @@ export function AppointmentManagement() {
     },
   });
 
+  // Fetch branches for dropdown
+  const { data: branches } = useQuery({
+    queryKey: ['branches'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('branches')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Claim appointment for processing
   const claimAppointmentMutation = useMutation({
     mutationFn: async (appointment: any) => {
@@ -96,8 +130,27 @@ export function AppointmentManagement() {
     onSuccess: ({ appointment }) => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       
-      // Extract service name from notes
-      const serviceName = appointment.lead?.service_product || '-';
+      // Initialize editable fields
+      setEditableFields({
+        customerName: `${appointment.lead?.first_name || ''} ${appointment.lead?.last_name || ''}`.trim(),
+        phone: appointment.lead?.phone || '',
+        branchId: appointment.branch_id || '',
+        appointmentDate: format(new Date(appointment.appointment_date), 'yyyy-MM-dd'),
+        appointmentTime: format(new Date(appointment.appointment_date), 'HH:mm'),
+        serviceProduct: appointment.lead?.service_product || '',
+        notes: appointment.notes || ''
+      });
+      
+      // Reset all edit states to locked
+      setFieldEditStates({
+        customerName: false,
+        phone: false,
+        branch: false,
+        appointmentDate: false,
+        appointmentTime: false,
+        serviceProduct: false,
+        notes: false
+      });
       
       setCallAppointment(appointment);
       setCallStatus(appointment.confirmation_status || 'pending');
@@ -450,40 +503,171 @@ export function AppointmentManagement() {
 
       {/* Call Processing Modal */}
       <Dialog open={isCallModalOpen} onOpenChange={setIsCallModalOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Process Appointment Call</DialogTitle>
           </DialogHeader>
           
           {callAppointment && (
             <div className="space-y-4">
-              <div className="p-4 bg-muted rounded-lg space-y-2">
-                <div className="flex justify-between">
-                  <span className="font-medium">Customer:</span>
-                  <span>{callAppointment.lead?.first_name} {callAppointment.lead?.last_name}</span>
+              {/* Customer Name */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 space-y-2">
+                  <Label>Customer Name</Label>
+                  <Input
+                    value={editableFields.customerName}
+                    onChange={(e) => setEditableFields(prev => ({ ...prev, customerName: e.target.value }))}
+                    disabled={!fieldEditStates.customerName}
+                  />
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Phone:</span>
-                  <span>{callAppointment.lead?.phone}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Service:</span>
-                  <span>{callAppointment.lead?.service_product || '-'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Branch:</span>
-                  <span>{callAppointment.branch?.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Date/Time:</span>
-                  <span>
-                    {format(new Date(callAppointment.appointment_date), 'PPP p')}
-                  </span>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-6"
+                  onClick={() => setFieldEditStates(prev => ({ ...prev, customerName: !prev.customerName }))}
+                >
+                  {fieldEditStates.customerName ? "Lock" : "Edit"}
+                </Button>
               </div>
 
-              <div className="space-y-2">
-                <Label>Update Confirmation Status *</Label>
+              {/* Phone Number */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 space-y-2">
+                  <Label>Phone Number</Label>
+                  <Input
+                    value={editableFields.phone}
+                    onChange={(e) => setEditableFields(prev => ({ ...prev, phone: e.target.value }))}
+                    disabled={!fieldEditStates.phone}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-6"
+                  onClick={() => setFieldEditStates(prev => ({ ...prev, phone: !prev.phone }))}
+                >
+                  {fieldEditStates.phone ? "Lock" : "Edit"}
+                </Button>
+              </div>
+
+              {/* Branch */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 space-y-2">
+                  <Label>Branch</Label>
+                  <Select
+                    value={editableFields.branchId}
+                    onValueChange={(value) => setEditableFields(prev => ({ ...prev, branchId: value }))}
+                    disabled={!fieldEditStates.branch}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches?.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-6"
+                  onClick={() => setFieldEditStates(prev => ({ ...prev, branch: !prev.branch }))}
+                >
+                  {fieldEditStates.branch ? "Lock" : "Edit"}
+                </Button>
+              </div>
+
+              {/* Appointment Date */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 space-y-2">
+                  <Label>Appointment Date</Label>
+                  <Input
+                    type="date"
+                    value={editableFields.appointmentDate}
+                    onChange={(e) => setEditableFields(prev => ({ ...prev, appointmentDate: e.target.value }))}
+                    disabled={!fieldEditStates.appointmentDate}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-6"
+                  onClick={() => setFieldEditStates(prev => ({ ...prev, appointmentDate: !prev.appointmentDate }))}
+                >
+                  {fieldEditStates.appointmentDate ? "Lock" : "Edit"}
+                </Button>
+              </div>
+
+              {/* Appointment Time */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 space-y-2">
+                  <Label>Appointment Time</Label>
+                  <Input
+                    type="time"
+                    value={editableFields.appointmentTime}
+                    onChange={(e) => setEditableFields(prev => ({ ...prev, appointmentTime: e.target.value }))}
+                    disabled={!fieldEditStates.appointmentTime}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-6"
+                  onClick={() => setFieldEditStates(prev => ({ ...prev, appointmentTime: !prev.appointmentTime }))}
+                >
+                  {fieldEditStates.appointmentTime ? "Lock" : "Edit"}
+                </Button>
+              </div>
+
+              {/* Service/Product */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 space-y-2">
+                  <Label>Service/Product</Label>
+                  <Input
+                    value={editableFields.serviceProduct}
+                    onChange={(e) => setEditableFields(prev => ({ ...prev, serviceProduct: e.target.value }))}
+                    disabled={!fieldEditStates.serviceProduct}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-6"
+                  onClick={() => setFieldEditStates(prev => ({ ...prev, serviceProduct: !prev.serviceProduct }))}
+                >
+                  {fieldEditStates.serviceProduct ? "Lock" : "Edit"}
+                </Button>
+              </div>
+
+              {/* Notes */}
+              <div className="flex items-start gap-2">
+                <div className="flex-1 space-y-2">
+                  <Label>Notes</Label>
+                  <Textarea
+                    value={editableFields.notes}
+                    onChange={(e) => setEditableFields(prev => ({ ...prev, notes: e.target.value }))}
+                    disabled={!fieldEditStates.notes}
+                    placeholder="Add notes about the appointment..."
+                    rows={3}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-6"
+                  onClick={() => setFieldEditStates(prev => ({ ...prev, notes: !prev.notes }))}
+                >
+                  {fieldEditStates.notes ? "Lock" : "Edit"}
+                </Button>
+              </div>
+
+              {/* Status */}
+              <div className="space-y-2 pt-4 border-t">
+                <Label>Status *</Label>
                 <Select value={callStatus} onValueChange={setCallStatus}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select status..." />
@@ -491,8 +675,8 @@ export function AppointmentManagement() {
                   <SelectContent>
                     <SelectItem value="pending">C0: Pending</SelectItem>
                     <SelectItem value="no_answer">C1: No Answer</SelectItem>
-                    <SelectItem value="reschedule">C2: Reschedule</SelectItem>
-                    <SelectItem value="cancelled">C3: Cancelled</SelectItem>
+                    <SelectItem value="rescheduled">C2: Appointment reschedule</SelectItem>
+                    <SelectItem value="cancelled">C3: Cancel appointment</SelectItem>
                     <SelectItem value="confirmed">C6: Confirmed</SelectItem>
                   </SelectContent>
                 </Select>
