@@ -215,7 +215,7 @@ export function AppointmentManagement() {
         branchId: appointment.branch_id || '',
         appointmentDate: format(new Date(appointment.appointment_date), 'yyyy-MM-dd'),
         appointmentTime: format(new Date(appointment.appointment_date), 'HH:mm'),
-        serviceProduct: appointment.service_product || '',
+        serviceProduct: servicesMap.get(appointment.service_product) || appointment.service_product || '',
         notes: appointment.notes || ''
       });
       
@@ -663,7 +663,7 @@ export function AppointmentManagement() {
                               branchId: appointment.branch_id || '',
                               appointmentDate: format(new Date(appointment.appointment_date), 'yyyy-MM-dd'),
                               appointmentTime: format(new Date(appointment.appointment_date), 'HH:mm'),
-                              serviceProduct: appointment.service_product || '',
+                              serviceProduct: servicesMap.get(appointment.service_product) || appointment.service_product || '',
                               notes: appointment.notes || ''
                             });
                             setFieldEditStates({
@@ -859,7 +859,7 @@ export function AppointmentManagement() {
                           >
                             {selectedServiceId
                               ? branchServices?.find((service) => service.id === selectedServiceId)?.name
-                              : editableFields.serviceProduct || "Select service..."}
+                              : (servicesMap.get(editableFields.serviceProduct) || editableFields.serviceProduct || "Select service...")}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
@@ -921,7 +921,7 @@ export function AppointmentManagement() {
                     </div>
                   ) : (
                     <div className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm">
-                      {editableFields.serviceProduct || '-'}
+                      {servicesMap.get(editableFields.serviceProduct) || editableFields.serviceProduct || '-'}
                     </div>
                   )}
                 </div>
