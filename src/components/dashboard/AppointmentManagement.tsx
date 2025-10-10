@@ -40,12 +40,32 @@ export function AppointmentManagement() {
           ),
           branch:branches(name),
           time_slot:time_slots(slot_date, slot_time),
-          assigned:profiles!appointments_assigned_to_fkey(full_name),
-          processing:profiles!appointments_processing_by_fkey(full_name)
+          assigned:profiles!appointments_assigned_to_fkey(full_name)
         `)
         .order('appointment_date', { ascending: true });
 
       if (error) throw error;
+      
+      // Fetch processing user details separately
+      if (data && data.length > 0) {
+        const processingUserIds = data
+          .filter(apt => apt.processing_by)
+          .map(apt => apt.processing_by);
+        
+        if (processingUserIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', processingUserIds);
+          
+          // Map processing user names to appointments
+          return data.map(apt => ({
+            ...apt,
+            processing: profiles?.find(p => p.id === apt.processing_by)
+          }));
+        }
+      }
+      
       return data;
     },
   });
@@ -341,7 +361,7 @@ export function AppointmentManagement() {
                     {appointment.processing_by ? (
                       <div className="flex items-center gap-2">
                         <Badge variant="default">
-                          Processing by {appointment.processing?.full_name}
+                          Processing by {(appointment as any).processing?.full_name || 'Unknown'}
                         </Badge>
                       </div>
                     ) : (
