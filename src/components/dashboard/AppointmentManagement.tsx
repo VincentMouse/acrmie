@@ -819,24 +819,8 @@ export function AppointmentManagement() {
     return <div className="text-center py-8">Loading appointments...</div>;
   }
 
-  const upcomingAppointments = appointments?.filter(apt => {
-    if (apt.is_completed) return false;
-    
-    const appointmentDate = new Date(apt.appointment_date);
-    const currentTime = getEffectiveTime();
-    
-    // Show if appointment is in the future
-    if (appointmentDate >= currentTime) return true;
-    
-    // Show if appointment needs update (D+1 without check-in status)
-    if (needsUpdate(apt)) return true;
-    
-    // Show if appointment is no-show and still updatable (within 3 days)
-    if (apt.check_in_status === 'no_show' && isNoShowUpdatable(apt)) return true;
-    
-    // Hide if appointment has a final status
-    return false;
-  });
+  // Show all appointments, filtering is only for display logic
+  const upcomingAppointments = appointments;
 
   const timeOverride = localStorage.getItem('timeOverride');
   const effectiveTime = getEffectiveTime();
