@@ -129,6 +129,21 @@ export function LeadManagement() {
   const [showTimeOverride, setShowTimeOverride] = useState(false);
   const [showNoLeadsDialog, setShowNoLeadsDialog] = useState(false);
   const [showWipeConfirmDialog, setShowWipeConfirmDialog] = useState(false);
+  
+  // L6 specific states
+  const [customerType, setCustomerType] = useState<string>('');
+  const [selectedBranch, setSelectedBranch] = useState<string>('');
+  const [appointmentDate, setAppointmentDate] = useState<Date | undefined>(undefined);
+  const [appointmentTimeSlot, setAppointmentTimeSlot] = useState<string>('');
+  // Consultation needed fields
+  const [concern, setConcern] = useState<string>('');
+  const [expectation, setExpectation] = useState<string>('');
+  const [budget, setBudget] = useState<string>('');
+  const [suggestedService, setSuggestedService] = useState<string>('');
+  const [additionalNotes, setAdditionalNotes] = useState<string>('');
+  // Follow up session fields
+  const [concurrentService, setConcurrentService] = useState<string>('');
+  const [sessionNumber, setSessionNumber] = useState<string>('');
 
   // Fetch lead history for the current lead
   const { data: leadHistory } = useQuery({
@@ -178,6 +193,41 @@ export function LeadManagement() {
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch branches for L6 appointment booking
+  const { data: branches } = useQuery({
+    queryKey: ['branches'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('branches')
+        .select('*')
+        .order('name');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch available time slots for selected branch and date
+  const { data: availableTimeSlots } = useQuery({
+    queryKey: ['time-slots', selectedBranch, appointmentDate],
+    queryFn: async () => {
+      if (!selectedBranch || !appointmentDate) return [];
+      
+      const { data, error } = await supabase
+        .from('time_slots')
+        .select('*')
+        .eq('branch_id', selectedBranch)
+        .eq('slot_date', format(appointmentDate, 'yyyy-MM-dd'))
+        .order('slot_time');
+      
+      if (error) throw error;
+      
+      // Filter slots where booked_count < max_capacity
+      return data?.filter(slot => (slot.booked_count || 0) < (slot.max_capacity || 7)) || [];
+    },
+    enabled: !!selectedBranch && !!appointmentDate,
   });
 
   const { data: leads, isLoading } = useQuery({
@@ -459,9 +509,31 @@ export function LeadManagement() {
         if (!callbackTime) throw new Error('Callback time is required for L2');
       }
 
+      // Validate L6 specific fields
+      if (statusUpdate === 'status_6') {
+        if (!customerType) throw new Error('Customer type is required for L6');
+        if (!selectedBranch) throw new Error('Branch is required for L6');
+        if (!appointmentDate) throw new Error('Appointment date is required for L6');
+        if (!appointmentTimeSlot) throw new Error('Appointment time is required for L6');
+        
+        if (customerType === 'consultation') {
+          if (!concern) throw new Error('Concern is required for consultation');
+          if (!expectation) throw new Error('Expectation is required for consultation');
+          if (!budget) throw new Error('Budget is required for consultation');
+          if (!suggestedService) throw new Error('Suggested service is required for consultation');
+        } else if (customerType === 'followup') {
+          if (!concurrentService) throw new Error('Concurrent service is required for follow-up');
+          if (!sessionNumber) throw new Error('Session number is required for follow-up');
+        }
+      }
+
       const updates: any = { 
         status: statusUpdate as any,
-        notes: callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`,
+        notes: statusUpdate === 'status_6' 
+          ? (customerType === 'consultation' 
+              ? `[Consultation] Concern: ${concern} | Expectation: ${expectation} | Budget: ${budget} | Suggested Service: ${suggestedService}${additionalNotes ? ` | Notes: ${additionalNotes}` : ''}`
+              : `[Follow-up Session] Concurrent Service: ${concurrentService} | Session Number: ${sessionNumber}`)
+          : (callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`),
       };
 
       // Handle L1 custom cooldown logic
@@ -557,6 +629,40 @@ export function LeadManagement() {
         .eq('id', pulledLead.id);
 
       if (error) throw error;
+
+      // Create appointment for L6
+      if (statusUpdate === 'status_6' && appointmentTimeSlot) {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        const appointmentDateTime = new Date(appointmentDate!);
+        const [hours, minutes] = availableTimeSlots?.find(slot => slot.id === appointmentTimeSlot)?.slot_time.split(':') || ['0', '0'];
+        appointmentDateTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+        const { error: appointmentError } = await supabase
+          .from('appointments')
+          .insert({
+            lead_id: pulledLead.id,
+            branch_id: selectedBranch,
+            time_slot_id: appointmentTimeSlot,
+            appointment_date: appointmentDateTime.toISOString(),
+            assigned_to: pulledLead.assigned_to || user?.id,
+            created_by: user?.id,
+            notes: updates.notes,
+          });
+
+        if (appointmentError) throw appointmentError;
+
+        // Update time slot booked count
+        const currentSlot = availableTimeSlots?.find(slot => slot.id === appointmentTimeSlot);
+        if (currentSlot) {
+          const { error: slotError } = await supabase
+            .from('time_slots')
+            .update({ booked_count: (currentSlot.booked_count || 0) + 1 })
+            .eq('id', appointmentTimeSlot);
+
+          if (slotError) throw slotError;
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
@@ -571,6 +677,17 @@ export function LeadManagement() {
       setCallbackDate(undefined);
       setCallbackTime('10:00');
       setAssignTo('self');
+      setCustomerType('');
+      setSelectedBranch('');
+      setAppointmentDate(undefined);
+      setAppointmentTimeSlot('');
+      setConcern('');
+      setExpectation('');
+      setBudget('');
+      setSuggestedService('');
+      setAdditionalNotes('');
+      setConcurrentService('');
+      setSessionNumber('');
       toast({ title: 'Call completed', description: 'Lead has been updated successfully' });
     },
     onError: (error: any) => {
@@ -845,6 +962,10 @@ export function LeadManagement() {
     'Spouse/Partner Disagree'
   ];
 
+  const L6_CALL_OUTCOMES = [
+    'Appointment Confirmed'
+  ];
+
   // Get filtered call outcomes based on status
   const getCallOutcomes = () => {
     if (statusUpdate === 'status_1') {
@@ -858,6 +979,9 @@ export function LeadManagement() {
     }
     if (statusUpdate === 'status_5') {
       return L5_CALL_OUTCOMES;
+    }
+    if (statusUpdate === 'status_6') {
+      return L6_CALL_OUTCOMES;
     }
     return CALL_OUTCOMES;
   };
@@ -985,25 +1109,222 @@ export function LeadManagement() {
                   {/* Show additional fields only after status is selected */}
                   {statusUpdate && (
                     <>
-                      <div className="space-y-2">
-                        <Label htmlFor="call-outcome">Call Outcome *</Label>
-                        <Select 
-                          value={callOutcome} 
-                          onValueChange={setCallOutcome}
-                          disabled={statusUpdate === 'status_2'}
-                        >
-                          <SelectTrigger id="call-outcome">
-                            <SelectValue placeholder="Select outcome" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {getCallOutcomes().map((outcome) => (
-                              <SelectItem key={outcome} value={outcome}>
-                                {outcome}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {/* Call Outcome - Hide for L6 */}
+                      {statusUpdate !== 'status_6' && (
+                        <div className="space-y-2">
+                          <Label htmlFor="call-outcome">Call Outcome *</Label>
+                          <Select 
+                            value={callOutcome} 
+                            onValueChange={setCallOutcome}
+                            disabled={statusUpdate === 'status_2'}
+                          >
+                            <SelectTrigger id="call-outcome">
+                              <SelectValue placeholder="Select outcome" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getCallOutcomes().map((outcome) => (
+                                <SelectItem key={outcome} value={outcome}>
+                                  {outcome}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* L6 Specific Fields */}
+                      {statusUpdate === 'status_6' && (
+                        <>
+                          <div className="space-y-2">
+                            <Label htmlFor="customer-type">Type of Customer *</Label>
+                            <Select value={customerType} onValueChange={setCustomerType}>
+                              <SelectTrigger id="customer-type">
+                                <SelectValue placeholder="Select customer type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="consultation">Consultation needed</SelectItem>
+                                <SelectItem value="followup">Follow up sessions</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="branch">Branch *</Label>
+                            <Select 
+                              value={selectedBranch} 
+                              onValueChange={(value) => {
+                                setSelectedBranch(value);
+                                setAppointmentDate(undefined);
+                                setAppointmentTimeSlot('');
+                              }}
+                            >
+                              <SelectTrigger id="branch">
+                                <SelectValue placeholder="Select branch" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {branches?.map((branch) => (
+                                  <SelectItem key={branch.id} value={branch.id}>
+                                    {branch.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="appointment-date">Appointment Date *</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  id="appointment-date"
+                                  variant="outline"
+                                  disabled={!selectedBranch}
+                                  className={cn(
+                                    "w-full justify-start text-left font-normal",
+                                    !appointmentDate && "text-muted-foreground",
+                                    !selectedBranch && "opacity-50 cursor-not-allowed"
+                                  )}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {appointmentDate ? format(appointmentDate, 'PPP') : "Pick a date"}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={appointmentDate}
+                                  onSelect={(date) => {
+                                    setAppointmentDate(date);
+                                    setAppointmentTimeSlot('');
+                                  }}
+                                  disabled={(date) => date < new Date()}
+                                  initialFocus
+                                  className="pointer-events-auto"
+                                />
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label htmlFor="appointment-time">Appointment Time *</Label>
+                            <Select 
+                              value={appointmentTimeSlot} 
+                              onValueChange={setAppointmentTimeSlot}
+                              disabled={!selectedBranch || !appointmentDate}
+                            >
+                              <SelectTrigger 
+                                id="appointment-time"
+                                className={cn(
+                                  (!selectedBranch || !appointmentDate) && "opacity-50 cursor-not-allowed"
+                                )}
+                              >
+                                <SelectValue placeholder="Select time slot" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableTimeSlots && availableTimeSlots.length > 0 ? (
+                                  availableTimeSlots.map((slot) => (
+                                    <SelectItem key={slot.id} value={slot.id}>
+                                      {slot.slot_time} ({slot.max_capacity - (slot.booked_count || 0)} slots available)
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value="no-slots" disabled>
+                                    No available slots
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Consultation specific fields */}
+                          {customerType === 'consultation' && (
+                            <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                              <h4 className="font-semibold text-sm">Consultation Details</h4>
+                              
+                              <div className="space-y-2">
+                                <Label htmlFor="concern">Concern *</Label>
+                                <Textarea
+                                  id="concern"
+                                  placeholder="Enter customer's concern..."
+                                  value={concern}
+                                  onChange={(e) => setConcern(e.target.value)}
+                                  rows={2}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="expectation">Expectation *</Label>
+                                <Textarea
+                                  id="expectation"
+                                  placeholder="Enter customer's expectation..."
+                                  value={expectation}
+                                  onChange={(e) => setExpectation(e.target.value)}
+                                  rows={2}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="budget">Budget *</Label>
+                                <Input
+                                  id="budget"
+                                  placeholder="Enter budget amount..."
+                                  value={budget}
+                                  onChange={(e) => setBudget(e.target.value)}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="suggested-service">Suggested Service *</Label>
+                                <Input
+                                  id="suggested-service"
+                                  placeholder="Enter suggested service..."
+                                  value={suggestedService}
+                                  onChange={(e) => setSuggestedService(e.target.value)}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="additional-notes">Additional Notes</Label>
+                                <Textarea
+                                  id="additional-notes"
+                                  placeholder="Enter any additional notes..."
+                                  value={additionalNotes}
+                                  onChange={(e) => setAdditionalNotes(e.target.value)}
+                                  rows={2}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Follow-up session specific fields */}
+                          {customerType === 'followup' && (
+                            <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                              <h4 className="font-semibold text-sm">Follow-up Session Details</h4>
+                              
+                              <div className="space-y-2">
+                                <Label htmlFor="concurrent-service">Concurrent Service *</Label>
+                                <Input
+                                  id="concurrent-service"
+                                  placeholder="Enter concurrent service..."
+                                  value={concurrentService}
+                                  onChange={(e) => setConcurrentService(e.target.value)}
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label htmlFor="session-number">Session Number *</Label>
+                                <Input
+                                  id="session-number"
+                                  type="number"
+                                  placeholder="Enter session number..."
+                                  value={sessionNumber}
+                                  onChange={(e) => setSessionNumber(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
 
                       {/* L2 Specific Fields */}
                       {statusUpdate === 'status_2' && (
@@ -1100,16 +1421,19 @@ export function LeadManagement() {
                         </div>
                       )}
 
-                      <div className="space-y-2">
-                        <Label htmlFor="call-notes">Call Notes</Label>
-                        <Textarea
-                          id="call-notes"
-                          placeholder="Enter any additional notes about the call..."
-                          value={callNotes}
-                          onChange={(e) => setCallNotes(e.target.value)}
-                          rows={3}
-                        />
-                      </div>
+                      {/* Call Notes - Hide for L6 */}
+                      {statusUpdate !== 'status_6' && (
+                        <div className="space-y-2">
+                          <Label htmlFor="call-notes">Call Notes</Label>
+                          <Textarea
+                            id="call-notes"
+                            placeholder="Enter any additional notes about the call..."
+                            value={callNotes}
+                            onChange={(e) => setCallNotes(e.target.value)}
+                            rows={3}
+                          />
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -1181,6 +1505,17 @@ export function LeadManagement() {
                 setCallbackTime('10:00');
                 setAssignTo('self');
                 setCallBackIn('');
+                setCustomerType('');
+                setSelectedBranch('');
+                setAppointmentDate(undefined);
+                setAppointmentTimeSlot('');
+                setConcern('');
+                setExpectation('');
+                setBudget('');
+                setSuggestedService('');
+                setAdditionalNotes('');
+                setConcurrentService('');
+                setSessionNumber('');
               }}
             >
               Cancel
@@ -1188,11 +1523,14 @@ export function LeadManagement() {
             <Button
               onClick={() => submitCallMutation.mutate()}
               disabled={
-                !callOutcome || 
                 !statusUpdate || 
                 submitCallMutation.isPending ||
+                (statusUpdate !== 'status_6' && !callOutcome) ||
                 (statusUpdate === 'status_2' && (!callbackDate || !callbackTime)) ||
-                (statusUpdate === 'status_5' && !callBackIn)
+                (statusUpdate === 'status_5' && !callBackIn) ||
+                (statusUpdate === 'status_6' && (!customerType || !selectedBranch || !appointmentDate || !appointmentTimeSlot ||
+                  (customerType === 'consultation' && (!concern || !expectation || !budget || !suggestedService)) ||
+                  (customerType === 'followup' && (!concurrentService || !sessionNumber))))
               }
             >
               Submit Call
