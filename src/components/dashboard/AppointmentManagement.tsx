@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Phone, Eye, Check, ChevronsUpDown } from 'lucide-react';
+import { Calendar, Phone, Eye, Check, ChevronsUpDown, Search, Filter } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,6 +22,14 @@ export function AppointmentManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  
+  // Search and filter states
+  const [searchPhone, setSearchPhone] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterAssignedTo, setFilterAssignedTo] = useState('');
+  const [filterConfirmationStatus, setFilterConfirmationStatus] = useState('');
+  const [filterRegistrationStatus, setFilterRegistrationStatus] = useState('');
+  const [filterBranch, setFilterBranch] = useState('');
   
   // Schedule appointment modal
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
@@ -69,17 +77,40 @@ export function AppointmentManagement() {
 
   // Fetch appointments with related data
   const { data: appointments, isLoading } = useQuery({
-    queryKey: ['appointments'],
+    queryKey: ['appointments', searchPhone, filterDate, filterAssignedTo, filterConfirmationStatus, filterRegistrationStatus, filterBranch],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('appointments')
         .select(`
           *,
           lead:leads(first_name, last_name, phone, service_product, notes),
           branch:branches(name),
           time_slot:time_slots(slot_date, slot_time)
-        `)
-        .order('appointment_date', { ascending: true });
+        `);
+
+      // Apply filters
+      if (filterDate) {
+        query = query.gte('appointment_date', `${filterDate}T00:00:00`)
+                     .lt('appointment_date', `${filterDate}T23:59:59`);
+      }
+      if (filterAssignedTo) {
+        query = query.eq('assigned_to', filterAssignedTo);
+      }
+      if (filterConfirmationStatus) {
+        query = query.eq('confirmation_status', filterConfirmationStatus);
+      }
+      if (filterRegistrationStatus === 'registered') {
+        query = query.not('booking_id', 'is', null);
+      } else if (filterRegistrationStatus === 'not_registered') {
+        query = query.is('booking_id', null);
+      }
+      if (filterBranch) {
+        query = query.eq('branch_id', filterBranch);
+      }
+
+      query = query.order('appointment_date', { ascending: true });
+
+      const { data, error } = await query;
 
       if (error) throw error;
       
@@ -98,15 +129,32 @@ export function AppointmentManagement() {
           
           const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
           
-          return data.map(appointment => ({
+          let filteredData = data.map(appointment => ({
             ...appointment,
             assigned: appointment.assigned_to ? profileMap.get(appointment.assigned_to) : null,
             processing: appointment.processing_by ? profileMap.get(appointment.processing_by) : null
           }));
+
+          // Apply phone search filter (client-side for partial matches)
+          if (searchPhone) {
+            filteredData = filteredData.filter(appointment => 
+              appointment.lead?.phone?.includes(searchPhone)
+            );
+          }
+
+          return filteredData;
         }
       }
       
-      return data;
+      // Apply phone search even if no userIds
+      let filteredData = data || [];
+      if (searchPhone) {
+        filteredData = filteredData.filter(appointment => 
+          appointment.lead?.phone?.includes(searchPhone)
+        );
+      }
+      
+      return filteredData;
     },
   });
 
@@ -147,6 +195,20 @@ export function AppointmentManagement() {
         .from('branches')
         .select('*')
         .order('name');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch all users for filter dropdown
+  const { data: allUsers } = useQuery({
+    queryKey: ['all-users'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .order('full_name');
       
       if (error) throw error;
       return data;
@@ -623,6 +685,143 @@ export function AppointmentManagement() {
             </form>
           </DialogContent>
         </Dialog>
+      </div>
+
+      {/* Search and Filter Section */}
+      <div className="mb-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <Search className="w-4 h-4 text-muted-foreground" />
+          <h3 className="font-semibold">Search & Filters</h3>
+          {(searchPhone || filterDate || filterAssignedTo || filterConfirmationStatus || filterRegistrationStatus || filterBranch) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchPhone('');
+                setFilterDate('');
+                setFilterAssignedTo('');
+                setFilterConfirmationStatus('');
+                setFilterRegistrationStatus('');
+                setFilterBranch('');
+              }}
+            >
+              Clear All
+            </Button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Phone Search */}
+          <div className="space-y-2">
+            <Label htmlFor="search-phone">Search by Phone</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                id="search-phone"
+                placeholder="Enter phone number..."
+                value={searchPhone}
+                onChange={(e) => setSearchPhone(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+
+          {/* Date Filter */}
+          <div className="space-y-2">
+            <Label htmlFor="filter-date">Appointment Date</Label>
+            <Input
+              id="filter-date"
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+            />
+          </div>
+
+          {/* Assigned To Filter */}
+          <div className="space-y-2">
+            <Label htmlFor="filter-assigned">Assigned To</Label>
+            <Select 
+              value={filterAssignedTo || "__all__"} 
+              onValueChange={(val) => setFilterAssignedTo(val === "__all__" ? '' : val)}
+            >
+              <SelectTrigger id="filter-assigned">
+                <SelectValue placeholder="All agents" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All agents</SelectItem>
+                {allUsers?.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Confirmation Status Filter */}
+          <div className="space-y-2">
+            <Label htmlFor="filter-confirmation">Confirmation Status</Label>
+            <Select 
+              value={filterConfirmationStatus || "__all__"} 
+              onValueChange={(val) => setFilterConfirmationStatus(val === "__all__" ? '' : val)}
+            >
+              <SelectTrigger id="filter-confirmation">
+                <SelectValue placeholder="All statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="no_show">No Show</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Registration Status Filter */}
+          <div className="space-y-2">
+            <Label htmlFor="filter-registration">Clinic Registration</Label>
+            <Select 
+              value={filterRegistrationStatus || "__all__"} 
+              onValueChange={(val) => setFilterRegistrationStatus(val === "__all__" ? '' : val)}
+            >
+              <SelectTrigger id="filter-registration">
+                <SelectValue placeholder="All appointments" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All appointments</SelectItem>
+                <SelectItem value="registered">Registered</SelectItem>
+                <SelectItem value="not_registered">Not Registered</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Branch Filter */}
+          <div className="space-y-2">
+            <Label htmlFor="filter-branch">Branch</Label>
+            <Select 
+              value={filterBranch || "__all__"} 
+              onValueChange={(val) => setFilterBranch(val === "__all__" ? '' : val)}
+            >
+              <SelectTrigger id="filter-branch">
+                <SelectValue placeholder="All branches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All branches</SelectItem>
+                {branches?.map((branch) => (
+                  <SelectItem key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Results count */}
+        <p className="text-sm text-muted-foreground">
+          Showing {upcomingAppointments?.length || 0} appointment(s)
+        </p>
       </div>
 
       <div className="rounded-md border overflow-x-auto">
