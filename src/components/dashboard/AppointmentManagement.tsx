@@ -106,6 +106,20 @@ export function AppointmentManagement() {
     },
   });
 
+  // Fetch all services/products for name resolution
+  const { data: allServices } = useQuery({
+    queryKey: ['services-products-all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('services_products')
+        .select('id, name');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const servicesMap = new Map((allServices || []).map((s: any) => [s.id, s.name]));
+
   // Fetch status 6 leads for scheduling
   const { data: status6Leads } = useQuery({
     queryKey: ['status-6-leads'],
@@ -509,7 +523,7 @@ export function AppointmentManagement() {
             {upcomingAppointments?.map((appointment) => {
               const isRegistered = !!appointment.booking_id;
               const isProcessing = !!appointment.processing_by;
-              const serviceName = appointment.lead?.service_product || '-';
+              const serviceName = servicesMap.get(appointment.service_product) || appointment.service_product || '-';
               
               return (
                 <TableRow 
@@ -884,7 +898,7 @@ export function AppointmentManagement() {
                 <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
                   <div>
                     <span className="text-sm text-muted-foreground">Service/Product</span>
-                    <p className="font-medium">{viewAppointment.lead?.service_product || '-'}</p>
+                    <p className="font-medium">{servicesMap.get(viewAppointment.service_product) || viewAppointment.service_product || '-'}</p>
                   </div>
                   <div>
                     <span className="text-sm text-muted-foreground">Branch</span>

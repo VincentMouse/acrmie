@@ -681,7 +681,7 @@ export function LeadManagement() {
             assigned_to: pulledLead.assigned_to || user?.id,
             created_by: user?.id,
             notes: updates.notes,
-            service_product: suggestedService || concurrentService || null,
+            service_product: (branchServices?.find(s => s.id === suggestedService)?.name) || (branchServices?.find(s => s.id === concurrentService)?.name) || null,
           });
 
         if (appointmentError) throw appointmentError;
