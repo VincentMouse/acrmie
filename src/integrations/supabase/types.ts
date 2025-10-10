@@ -30,6 +30,7 @@ export type Database = {
           processing_at: string | null
           processing_by: string | null
           reminder_status: string
+          service_product: string | null
           time_slot_id: string | null
         }
         Insert: {
@@ -47,6 +48,7 @@ export type Database = {
           processing_at?: string | null
           processing_by?: string | null
           reminder_status?: string
+          service_product?: string | null
           time_slot_id?: string | null
         }
         Update: {
@@ -64,6 +66,7 @@ export type Database = {
           processing_at?: string | null
           processing_by?: string | null
           reminder_status?: string
+          service_product?: string | null
           time_slot_id?: string | null
         }
         Relationships: [

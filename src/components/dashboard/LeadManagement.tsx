@@ -679,6 +679,7 @@ export function LeadManagement() {
             assigned_to: pulledLead.assigned_to || user?.id,
             created_by: user?.id,
             notes: updates.notes,
+            service_product: suggestedService || concurrentService || null,
           });
 
         if (appointmentError) throw appointmentError;

@@ -183,7 +183,7 @@ export function AppointmentManagement() {
         branchId: appointment.branch_id || '',
         appointmentDate: format(new Date(appointment.appointment_date), 'yyyy-MM-dd'),
         appointmentTime: format(new Date(appointment.appointment_date), 'HH:mm'),
-        serviceProduct: appointment.lead?.service_product || '',
+        serviceProduct: appointment.service_product || '',
         notes: appointment.notes || ''
       });
       
