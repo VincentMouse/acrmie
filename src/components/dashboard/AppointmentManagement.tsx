@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -62,6 +62,10 @@ export function AppointmentManagement() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [viewAppointment, setViewAppointment] = useState<any>(null);
   const [bookingId, setBookingId] = useState('');
+
+  // Heartbeat and timer refs
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const releaseTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch appointments with related data
   const { data: appointments, isLoading } = useQuery({
@@ -171,9 +175,23 @@ export function AppointmentManagement() {
     mutationFn: async (appointment: any) => {
       if (!user?.id) throw new Error('Not authenticated');
 
+      // First check if user already has an appointment in call
+      const { data: existingInCall } = await supabase
+        .from('appointments')
+        .select('id')
+        .eq('processing_by', user.id)
+        .not('processing_at', 'is', null)
+        .maybeSingle();
+
+      if (existingInCall) {
+        throw new Error('ALREADY_IN_CALL');
+      }
+
+      // Claim the appointment
       const { data, error } = await supabase
         .from('appointments')
         .update({
+          assigned_to: user.id,
           processing_by: user.id,
           processing_at: new Date().toISOString(),
         })
@@ -216,13 +234,25 @@ export function AppointmentManagement() {
       setCallStatus(appointment.confirmation_status || 'pending');
       setIsCallModalOpen(true);
       
+      // Clear any pending release timer
+      if (releaseTimerRef.current) {
+        clearTimeout(releaseTimerRef.current);
+        releaseTimerRef.current = null;
+      }
+      
       toast({
         title: 'Call started',
         description: 'You are now processing this appointment',
       });
     },
     onError: (error: any) => {
-      if (error.message === 'RACE_CONDITION') {
+      if (error.message === 'ALREADY_IN_CALL') {
+        toast({
+          title: 'Already in call',
+          description: 'You can only process one appointment at a time. Please finish your current call first.',
+          variant: 'destructive',
+        });
+      } else if (error.message === 'RACE_CONDITION') {
         toast({
           title: 'Already claimed',
           description: 'Another CS is already processing this appointment',
@@ -258,6 +288,21 @@ export function AppointmentManagement() {
     },
   });
 
+  // Refresh heartbeat
+  const refreshHeartbeatMutation = useMutation({
+    mutationFn: async (appointmentId: string) => {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          processing_at: new Date().toISOString(),
+        })
+        .eq('id', appointmentId)
+        .eq('processing_by', user?.id);
+
+      if (error) throw error;
+    },
+  });
+
   // Finish call and update status
   const finishCallMutation = useMutation({
     mutationFn: async ({ appointmentId, status }: { appointmentId: string; status: string }) => {
@@ -273,6 +318,18 @@ export function AppointmentManagement() {
       if (error) throw error;
     },
     onSuccess: () => {
+      // Clear heartbeat
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+      
+      // Clear release timer
+      if (releaseTimerRef.current) {
+        clearTimeout(releaseTimerRef.current);
+        releaseTimerRef.current = null;
+      }
+      
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       setIsCallModalOpen(false);
       setCallAppointment(null);
@@ -387,8 +444,17 @@ export function AppointmentManagement() {
 
   const handleCallModalClose = (open: boolean) => {
     if (!open && callAppointment && !finishCallMutation.isPending) {
-      // Modal is being closed without finishing the call - release the appointment
-      releaseAppointmentMutation.mutate(callAppointment.id);
+      // Stop heartbeat
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+      
+      // Start 1-minute release timer
+      releaseTimerRef.current = setTimeout(() => {
+        releaseAppointmentMutation.mutate(callAppointment.id);
+      }, 60000); // 1 minute
+      
       setCallAppointment(null);
       setCallStatus('');
       // Reset service selection states
@@ -398,6 +464,35 @@ export function AppointmentManagement() {
     }
     setIsCallModalOpen(open);
   };
+
+  // Heartbeat effect - refresh processing_at every 30 seconds while modal is open
+  useEffect(() => {
+    if (isCallModalOpen && callAppointment?.id) {
+      // Start heartbeat
+      heartbeatIntervalRef.current = setInterval(() => {
+        refreshHeartbeatMutation.mutate(callAppointment.id);
+      }, 30000); // 30 seconds
+
+      return () => {
+        if (heartbeatIntervalRef.current) {
+          clearInterval(heartbeatIntervalRef.current);
+          heartbeatIntervalRef.current = null;
+        }
+      };
+    }
+  }, [isCallModalOpen, callAppointment?.id]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+      if (releaseTimerRef.current) {
+        clearTimeout(releaseTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleRegisterAppointment = () => {
     if (!viewAppointment || !bookingId.trim()) {
@@ -546,13 +641,7 @@ export function AppointmentManagement() {
                       : format(new Date(appointment.appointment_date), 'p')}
                   </TableCell>
                   <TableCell>
-                    {isProcessing ? (
-                      <Badge variant="default">
-                        {(appointment as any).processing?.full_name || 'Processing...'}
-                      </Badge>
-                    ) : (
-                      (appointment as any).assigned?.full_name || '-'
-                    )}
+                    {(appointment as any).assigned?.full_name || '-'}
                   </TableCell>
                   <TableCell>
                     <Badge variant={appointment.confirmation_status === 'confirmed' ? 'default' : 'secondary'}>
@@ -562,8 +651,47 @@ export function AppointmentManagement() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       {isProcessing && appointment.processing_by === user?.id ? (
-                        <Badge variant="outline">In Call...</Badge>
-                      ) : !isProcessing ? (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => {
+                            // Reopen the modal for the same agent
+                            setCallAppointment(appointment);
+                            setEditableFields({
+                              customerName: `${appointment.lead?.first_name || ''} ${appointment.lead?.last_name || ''}`.trim(),
+                              phone: appointment.lead?.phone || '',
+                              branchId: appointment.branch_id || '',
+                              appointmentDate: format(new Date(appointment.appointment_date), 'yyyy-MM-dd'),
+                              appointmentTime: format(new Date(appointment.appointment_date), 'HH:mm'),
+                              serviceProduct: appointment.service_product || '',
+                              notes: appointment.notes || ''
+                            });
+                            setFieldEditStates({
+                              customerName: false,
+                              phone: false,
+                              branch: false,
+                              appointmentDate: false,
+                              appointmentTime: false,
+                              serviceProduct: false,
+                              notes: false
+                            });
+                            setCallStatus(appointment.confirmation_status || 'pending');
+                            
+                            // Clear release timer if exists
+                            if (releaseTimerRef.current) {
+                              clearTimeout(releaseTimerRef.current);
+                              releaseTimerRef.current = null;
+                            }
+                            
+                            setIsCallModalOpen(true);
+                          }}
+                        >
+                          <Phone className="w-4 h-4 mr-2" />
+                          Resume Call
+                        </Button>
+                      ) : isProcessing ? (
+                        <Badge variant="secondary">In Call...</Badge>
+                      ) : (
                         <Button
                           size="sm"
                           variant="default"
@@ -573,8 +701,6 @@ export function AppointmentManagement() {
                           <Phone className="w-4 h-4 mr-2" />
                           Call
                         </Button>
-                      ) : (
-                        <Badge variant="secondary">Busy</Badge>
                       )}
                       
                       <Button
