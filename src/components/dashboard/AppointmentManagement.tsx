@@ -66,13 +66,35 @@ export function AppointmentManagement() {
           *,
           lead:leads(first_name, last_name, phone, service_product, notes),
           branch:branches(name),
-          time_slot:time_slots(slot_date, slot_time),
-          assigned:profiles!appointments_assigned_to_fkey(full_name),
-          processing:profiles!appointments_processing_by_fkey(full_name)
+          time_slot:time_slots(slot_date, slot_time)
         `)
         .order('appointment_date', { ascending: true });
 
       if (error) throw error;
+      
+      // Manually fetch profile data for assigned_to and processing_by
+      if (data && data.length > 0) {
+        const userIds = [...new Set([
+          ...data.map(a => a.assigned_to).filter(Boolean),
+          ...data.map(a => a.processing_by).filter(Boolean)
+        ])];
+        
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name')
+            .in('id', userIds);
+          
+          const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+          
+          return data.map(appointment => ({
+            ...appointment,
+            assigned: appointment.assigned_to ? profileMap.get(appointment.assigned_to) : null,
+            processing: appointment.processing_by ? profileMap.get(appointment.processing_by) : null
+          }));
+        }
+      }
+      
       return data;
     },
   });
@@ -458,7 +480,7 @@ export function AppointmentManagement() {
                         {(appointment as any).processing?.full_name || 'Processing...'}
                       </Badge>
                     ) : (
-                      appointment.assigned?.full_name || '-'
+                      (appointment as any).assigned?.full_name || '-'
                     )}
                   </TableCell>
                   <TableCell>
