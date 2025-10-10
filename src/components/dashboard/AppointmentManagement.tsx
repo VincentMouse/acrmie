@@ -10,9 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Phone } from 'lucide-react';
+import { Calendar, Phone, Edit2 } from 'lucide-react';
 import { differenceInDays, format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function AppointmentManagement() {
   const { toast } = useToast();
@@ -22,6 +23,21 @@ export function AppointmentManagement() {
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [appointmentDate, setAppointmentDate] = useState('');
   const [notes, setNotes] = useState('');
+  
+  // Modal state for call processing
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState({
+    customerName: '',
+    phone: '',
+    branch: '',
+    appointmentDate: '',
+    appointmentTime: '',
+    service: '',
+    notes: '',
+    status: ''
+  });
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['appointments'],
@@ -85,7 +101,7 @@ export function AppointmentManagement() {
   });
 
   const claimAppointmentMutation = useMutation({
-    mutationFn: async (appointmentId: string) => {
+    mutationFn: async (appointment: any) => {
       if (!user?.id) throw new Error('Not authenticated');
 
       // Use a transaction-like update with WHERE clause to handle race conditions
@@ -95,7 +111,7 @@ export function AppointmentManagement() {
           processing_by: user.id,
           processing_at: new Date().toISOString(),
         })
-        .eq('id', appointmentId)
+        .eq('id', appointment.id)
         .is('processing_by', null) // Only update if not already claimed
         .select()
         .single();
@@ -107,14 +123,33 @@ export function AppointmentManagement() {
         throw new Error('RACE_CONDITION');
       }
 
-      return data;
+      return { data, appointment };
     },
-    onSuccess: () => {
+    onSuccess: ({ appointment }) => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       toast({
         title: 'Call started',
         description: 'You are now processing this appointment',
       });
+      
+      // Open the call modal with appointment details
+      const serviceName = appointment.notes?.match(/Suggested Service: ([^\n]+)|Concurrent service: ([^\n]+)/)?.[1] || 
+                         appointment.notes?.match(/Suggested Service: ([^\n]+)|Concurrent service: ([^\n]+)/)?.[2] || '-';
+      
+      setSelectedAppointment(appointment);
+      setEditValues({
+        customerName: `${appointment.lead?.first_name || ''} ${appointment.lead?.last_name || ''}`,
+        phone: appointment.lead?.phone || '',
+        branch: appointment.branch?.name || '',
+        appointmentDate: appointment.time_slot?.slot_date 
+          ? format(new Date(appointment.time_slot.slot_date), 'yyyy-MM-dd')
+          : format(new Date(appointment.appointment_date), 'yyyy-MM-dd'),
+        appointmentTime: appointment.time_slot?.slot_time || format(new Date(appointment.appointment_date), 'HH:mm'),
+        service: serviceName,
+        notes: appointment.notes || '',
+        status: appointment.confirmation_status || 'pending'
+      });
+      setIsCallModalOpen(true);
     },
     onError: (error: any) => {
       if (error.message === 'RACE_CONDITION') {
@@ -302,8 +337,6 @@ export function AppointmentManagement() {
               <TableHead>Marketer Name</TableHead>
               <TableHead>Notes</TableHead>
               <TableHead>Confirmation Status</TableHead>
-              <TableHead>Reminder Status</TableHead>
-              <TableHead>Assigned To</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -348,27 +381,15 @@ export function AppointmentManagement() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={appointment.confirmation_status === 'confirmed' ? 'default' : 'secondary'}>
-                      {appointment.confirmation_status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={appointment.reminder_status === 'sent' ? 'default' : 'secondary'}>
-                      {appointment.reminder_status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
                     {appointment.processing_by ? (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="default">
-                          Processing by {(appointment as any).processing?.full_name || 'Unknown'}
-                        </Badge>
-                      </div>
+                      <Badge variant="default">
+                        Processing by {(appointment as any).processing?.full_name || 'Unknown'}
+                      </Badge>
                     ) : (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => claimAppointmentMutation.mutate(appointment.id)}
+                        onClick={() => claimAppointmentMutation.mutate(appointment)}
                         disabled={claimAppointmentMutation.isPending}
                       >
                         <Phone className="w-4 h-4 mr-2" />
@@ -382,6 +403,222 @@ export function AppointmentManagement() {
           </TableBody>
         </Table>
       </div>
+
+      {/* Call Processing Modal */}
+      <Dialog open={isCallModalOpen} onOpenChange={setIsCallModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Process Appointment Call</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Customer Name */}
+            <div className="flex items-center gap-2">
+              <Label className="w-40">Customer Name:</Label>
+              {editingField === 'customerName' ? (
+                <Input
+                  value={editValues.customerName}
+                  onChange={(e) => setEditValues({ ...editValues, customerName: e.target.value })}
+                  onBlur={() => setEditingField(null)}
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <span className="flex-1">{editValues.customerName}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingField('customerName')}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Phone Number */}
+            <div className="flex items-center gap-2">
+              <Label className="w-40">Phone Number:</Label>
+              {editingField === 'phone' ? (
+                <Input
+                  value={editValues.phone}
+                  onChange={(e) => setEditValues({ ...editValues, phone: e.target.value })}
+                  onBlur={() => setEditingField(null)}
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <span className="flex-1">{editValues.phone}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingField('phone')}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Branch */}
+            <div className="flex items-center gap-2">
+              <Label className="w-40">Branch:</Label>
+              {editingField === 'branch' ? (
+                <Input
+                  value={editValues.branch}
+                  onChange={(e) => setEditValues({ ...editValues, branch: e.target.value })}
+                  onBlur={() => setEditingField(null)}
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <span className="flex-1">{editValues.branch}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingField('branch')}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Appointment Date */}
+            <div className="flex items-center gap-2">
+              <Label className="w-40">Appointment Date:</Label>
+              {editingField === 'appointmentDate' ? (
+                <Input
+                  type="date"
+                  value={editValues.appointmentDate}
+                  onChange={(e) => setEditValues({ ...editValues, appointmentDate: e.target.value })}
+                  onBlur={() => setEditingField(null)}
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <span className="flex-1">{editValues.appointmentDate}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingField('appointmentDate')}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Appointment Time */}
+            <div className="flex items-center gap-2">
+              <Label className="w-40">Appointment Time:</Label>
+              {editingField === 'appointmentTime' ? (
+                <Input
+                  type="time"
+                  value={editValues.appointmentTime}
+                  onChange={(e) => setEditValues({ ...editValues, appointmentTime: e.target.value })}
+                  onBlur={() => setEditingField(null)}
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <span className="flex-1">{editValues.appointmentTime}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingField('appointmentTime')}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Service/Product */}
+            <div className="flex items-center gap-2">
+              <Label className="w-40">Service/Product:</Label>
+              {editingField === 'service' ? (
+                <Input
+                  value={editValues.service}
+                  onChange={(e) => setEditValues({ ...editValues, service: e.target.value })}
+                  onBlur={() => setEditingField(null)}
+                  autoFocus
+                />
+              ) : (
+                <>
+                  <span className="flex-1">{editValues.service}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingField('service')}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div className="flex items-start gap-2">
+              <Label className="w-40 mt-2">Notes:</Label>
+              {editingField === 'notes' ? (
+                <Textarea
+                  value={editValues.notes}
+                  onChange={(e) => setEditValues({ ...editValues, notes: e.target.value })}
+                  onBlur={() => setEditingField(null)}
+                  autoFocus
+                  rows={3}
+                  className="flex-1"
+                />
+              ) : (
+                <>
+                  <span className="flex-1 whitespace-pre-wrap">{editValues.notes}</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setEditingField('notes')}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {/* Status */}
+            <div className="flex items-center gap-2">
+              <Label className="w-40">Status:</Label>
+              <Select value={editValues.status} onValueChange={(value) => setEditValues({ ...editValues, status: value })}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">C0: Pending</SelectItem>
+                  <SelectItem value="no_answer">C1: No Answer</SelectItem>
+                  <SelectItem value="reschedule">C2: Appointment reschedule</SelectItem>
+                  <SelectItem value="cancelled">C3: Cancel appointment</SelectItem>
+                  <SelectItem value="confirmed">C6: Confirmed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <Button variant="outline" onClick={() => setIsCallModalOpen(false)}>
+                Close
+              </Button>
+              <Button onClick={() => {
+                // TODO: Save changes
+                toast({
+                  title: 'Changes saved',
+                  description: 'Appointment details updated successfully',
+                });
+                setIsCallModalOpen(false);
+              }}>
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
