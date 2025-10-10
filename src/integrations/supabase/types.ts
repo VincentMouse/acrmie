@@ -20,16 +20,20 @@ export type Database = {
           assigned_to: string
           booking_id: string | null
           branch_id: string | null
+          check_in_status: string | null
+          check_in_updated_at: string | null
           confirmation_status: string
           created_at: string | null
           created_by: string | null
           id: string
           is_completed: boolean | null
           lead_id: string
+          note_from_clinic: string | null
           notes: string | null
           processing_at: string | null
           processing_by: string | null
           reminder_status: string
+          revenue: number | null
           service_product: string | null
           time_slot_id: string | null
         }
@@ -38,16 +42,20 @@ export type Database = {
           assigned_to: string
           booking_id?: string | null
           branch_id?: string | null
+          check_in_status?: string | null
+          check_in_updated_at?: string | null
           confirmation_status?: string
           created_at?: string | null
           created_by?: string | null
           id?: string
           is_completed?: boolean | null
           lead_id: string
+          note_from_clinic?: string | null
           notes?: string | null
           processing_at?: string | null
           processing_by?: string | null
           reminder_status?: string
+          revenue?: number | null
           service_product?: string | null
           time_slot_id?: string | null
         }
@@ -56,16 +64,20 @@ export type Database = {
           assigned_to?: string
           booking_id?: string | null
           branch_id?: string | null
+          check_in_status?: string | null
+          check_in_updated_at?: string | null
           confirmation_status?: string
           created_at?: string | null
           created_by?: string | null
           id?: string
           is_completed?: boolean | null
           lead_id?: string
+          note_from_clinic?: string | null
           notes?: string | null
           processing_at?: string | null
           processing_by?: string | null
           reminder_status?: string
+          revenue?: number | null
           service_product?: string | null
           time_slot_id?: string | null
         }

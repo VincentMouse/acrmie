@@ -42,6 +42,17 @@ export function AppointmentManagement() {
   const [callAppointment, setCallAppointment] = useState<any>(null);
   const [callStatus, setCallStatus] = useState('');
   
+  // Update modal (post-appointment)
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [updateAppointment, setUpdateAppointment] = useState<any>(null);
+  const [checkInStatus, setCheckInStatus] = useState('');
+  const [updateServiceId, setUpdateServiceId] = useState('');
+  const [updateRevenue, setUpdateRevenue] = useState('');
+  const [noteFromClinic, setNoteFromClinic] = useState('');
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [openUpdateServiceCombo, setOpenUpdateServiceCombo] = useState(false);
+  
   const [editableFields, setEditableFields] = useState({
     customerName: '',
     phone: '',
@@ -466,6 +477,86 @@ export function AppointmentManagement() {
     },
   });
 
+  // Update post-appointment results
+  const updatePostAppointmentMutation = useMutation({
+    mutationFn: async (data: {
+      appointmentId: string;
+      checkInStatus: string;
+      serviceId?: string;
+      revenue?: string;
+      noteFromClinic?: string;
+      rescheduleDate?: string;
+      rescheduleTime?: string;
+    }) => {
+      // If rescheduling, update appointment date and revert to confirmed
+      if (data.checkInStatus === 'rescheduled' && data.rescheduleDate && data.rescheduleTime) {
+        const combinedDateTime = `${data.rescheduleDate}T${data.rescheduleTime}:00`;
+        
+        const { error } = await supabase
+          .from('appointments')
+          .update({
+            check_in_status: null,
+            check_in_updated_at: null,
+            confirmation_status: 'confirmed',
+            appointment_date: combinedDateTime,
+            revenue: null,
+            note_from_clinic: null,
+          })
+          .eq('id', data.appointmentId);
+
+        if (error) throw error;
+      } else {
+        // Normal check-in status update
+        const updateData: any = {
+          check_in_status: data.checkInStatus,
+          check_in_updated_at: new Date().toISOString(),
+        };
+
+        if (data.serviceId) {
+          updateData.service_product = data.serviceId;
+        }
+        
+        if (data.revenue) {
+          updateData.revenue = parseFloat(data.revenue);
+        }
+        
+        if (data.noteFromClinic) {
+          updateData.note_from_clinic = data.noteFromClinic;
+        }
+
+        const { error } = await supabase
+          .from('appointments')
+          .update(updateData)
+          .eq('id', data.appointmentId);
+
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      setIsUpdateModalOpen(false);
+      setUpdateAppointment(null);
+      setCheckInStatus('');
+      setUpdateServiceId('');
+      setUpdateRevenue('');
+      setNoteFromClinic('');
+      setRescheduleDate('');
+      setRescheduleTime('');
+      
+      toast({
+        title: 'Update successful',
+        description: 'Post-appointment results have been saved',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to update appointment results',
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Create new appointment
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -601,6 +692,105 @@ export function AppointmentManagement() {
     setViewAppointment(appointment);
     setBookingId(appointment.booking_id || '');
     setIsViewModalOpen(true);
+  };
+
+  const handleUpdateAppointment = (appointment: any) => {
+    setUpdateAppointment(appointment);
+    setCheckInStatus('');
+    setUpdateServiceId('');
+    setUpdateRevenue('');
+    setNoteFromClinic('');
+    setRescheduleDate('');
+    setRescheduleTime('');
+    setIsUpdateModalOpen(true);
+  };
+
+  const handleSubmitUpdate = () => {
+    if (!updateAppointment || !checkInStatus) {
+      toast({
+        title: 'Validation error',
+        description: 'Please select a check-in status',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate required fields for specific statuses
+    if (['paid_new_session', 'only_buy_medicine'].includes(checkInStatus)) {
+      if (!updateServiceId || !updateRevenue) {
+        toast({
+          title: 'Validation error',
+          description: 'Service/Product and Revenue are required for this status',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // Validate reschedule fields
+    if (checkInStatus === 'rescheduled') {
+      if (!rescheduleDate || !rescheduleTime) {
+        toast({
+          title: 'Validation error',
+          description: 'Please select new appointment date and time',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    updatePostAppointmentMutation.mutate({
+      appointmentId: updateAppointment.id,
+      checkInStatus,
+      serviceId: updateServiceId || undefined,
+      revenue: updateRevenue || undefined,
+      noteFromClinic: noteFromClinic || undefined,
+      rescheduleDate: rescheduleDate || undefined,
+      rescheduleTime: rescheduleTime || undefined,
+    });
+  };
+
+  // Check if appointment needs update status (D+1)
+  const needsUpdate = (appointment: any) => {
+    if (appointment.check_in_status) return false; // Already has check-in status
+    
+    const appointmentDate = new Date(appointment.appointment_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const dayAfterAppointment = new Date(appointmentDate);
+    dayAfterAppointment.setDate(dayAfterAppointment.getDate() + 1);
+    dayAfterAppointment.setHours(0, 0, 0, 0);
+    
+    return today >= dayAfterAppointment;
+  };
+
+  // Check if no-show is within 3 days and still updatable
+  const isNoShowUpdatable = (appointment: any) => {
+    if (appointment.check_in_status !== 'no_show') return false;
+    
+    const checkInDate = new Date(appointment.check_in_updated_at);
+    const today = new Date();
+    const daysDiff = Math.floor((today.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    return daysDiff <= 3;
+  };
+
+  // Check if appointment is final (cannot be edited)
+  const isFinalStatus = (appointment: any) => {
+    if (!appointment.check_in_status) return false;
+    
+    const finalStatuses = [
+      'paid_new_session',
+      'follow_up_session',
+      'consultation_only',
+      'service_completed',
+      'only_buy_medicine',
+      'rescheduled',
+      'cancelled'
+    ];
+    
+    return finalStatuses.includes(appointment.check_in_status);
   };
 
   if (isLoading) {
@@ -835,6 +1025,7 @@ export function AppointmentManagement() {
               <TableHead>Appointment Time</TableHead>
               <TableHead>Assigned To</TableHead>
               <TableHead>Confirmation Status</TableHead>
+              <TableHead>Check-in Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -872,69 +1063,113 @@ export function AppointmentManagement() {
                       {appointment.confirmation_status}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                    {appointment.check_in_status ? (
+                      <Badge variant="default">
+                        {appointment.check_in_status.replace(/_/g, ' ')}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      {isProcessing && appointment.processing_by === user?.id ? (
+                      {isFinalStatus(appointment) ? (
+                        // Final status - only View button
                         <Button
                           size="sm"
-                          variant="default"
-                          onClick={() => {
-                            // Reopen the modal for the same agent
-                            setCallAppointment(appointment);
-                            setEditableFields({
-                              customerName: `${appointment.lead?.first_name || ''} ${appointment.lead?.last_name || ''}`.trim(),
-                              phone: appointment.lead?.phone || '',
-                              branchId: appointment.branch_id || '',
-                              appointmentDate: format(new Date(appointment.appointment_date), 'yyyy-MM-dd'),
-                              appointmentTime: format(new Date(appointment.appointment_date), 'HH:mm'),
-                              serviceProduct: servicesMap.get(appointment.service_product) || appointment.service_product || '',
-                              notes: appointment.notes || ''
-                            });
-                            setFieldEditStates({
-                              customerName: false,
-                              phone: false,
-                              branch: false,
-                              appointmentDate: false,
-                              appointmentTime: false,
-                              serviceProduct: false,
-                              notes: false
-                            });
-                            setCallStatus(appointment.confirmation_status || 'pending');
-                            
-                            // Clear release timer if exists
-                            if (releaseTimerRef.current) {
-                              clearTimeout(releaseTimerRef.current);
-                              releaseTimerRef.current = null;
-                            }
-                            
-                            setIsCallModalOpen(true);
-                          }}
+                          variant="outline"
+                          onClick={() => handleViewAppointment(appointment)}
                         >
-                          <Phone className="w-4 h-4 mr-2" />
-                          Resume Call
+                          <Eye className="w-4 h-4 mr-2" />
+                          View
                         </Button>
-                      ) : isProcessing ? (
-                        <Badge variant="secondary">In Call...</Badge>
+                      ) : needsUpdate(appointment) || (appointment.check_in_status === 'no_show' && isNoShowUpdatable(appointment)) ? (
+                        // Show Update button for D+1 or updatable no-show
+                        <>
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => handleUpdateAppointment(appointment)}
+                          >
+                            <Check className="w-4 h-4 mr-2" />
+                            Update
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewAppointment(appointment)}
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            View
+                          </Button>
+                        </>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="default"
-                          onClick={() => claimAppointmentMutation.mutate(appointment)}
-                          disabled={claimAppointmentMutation.isPending}
-                        >
-                          <Phone className="w-4 h-4 mr-2" />
-                          Call
-                        </Button>
+                        // Normal call flow
+                        <>
+                          {isProcessing && appointment.processing_by === user?.id ? (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => {
+                                // Reopen the modal for the same agent
+                                setCallAppointment(appointment);
+                                setEditableFields({
+                                  customerName: `${appointment.lead?.first_name || ''} ${appointment.lead?.last_name || ''}`.trim(),
+                                  phone: appointment.lead?.phone || '',
+                                  branchId: appointment.branch_id || '',
+                                  appointmentDate: format(new Date(appointment.appointment_date), 'yyyy-MM-dd'),
+                                  appointmentTime: format(new Date(appointment.appointment_date), 'HH:mm'),
+                                  serviceProduct: servicesMap.get(appointment.service_product) || appointment.service_product || '',
+                                  notes: appointment.notes || ''
+                                });
+                                setFieldEditStates({
+                                  customerName: false,
+                                  phone: false,
+                                  branch: false,
+                                  appointmentDate: false,
+                                  appointmentTime: false,
+                                  serviceProduct: false,
+                                  notes: false
+                                });
+                                setCallStatus(appointment.confirmation_status || 'pending');
+                                
+                                // Clear release timer if exists
+                                if (releaseTimerRef.current) {
+                                  clearTimeout(releaseTimerRef.current);
+                                  releaseTimerRef.current = null;
+                                }
+                                
+                                setIsCallModalOpen(true);
+                              }}
+                            >
+                              <Phone className="w-4 h-4 mr-2" />
+                              Resume Call
+                            </Button>
+                          ) : isProcessing ? (
+                            <Badge variant="secondary">In Call...</Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => claimAppointmentMutation.mutate(appointment)}
+                              disabled={claimAppointmentMutation.isPending}
+                            >
+                              <Phone className="w-4 h-4 mr-2" />
+                              Call
+                            </Button>
+                          )}
+                          
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewAppointment(appointment)}
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            View
+                          </Button>
+                        </>
                       )}
-                      
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleViewAppointment(appointment)}
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View
-                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1326,6 +1561,170 @@ export function AppointmentManagement() {
               <div className="flex justify-end pt-4">
                 <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>
                   Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Update Post-Appointment Modal */}
+      <Dialog open={isUpdateModalOpen} onOpenChange={setIsUpdateModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Update Post-Appointment Results</DialogTitle>
+          </DialogHeader>
+          
+          {updateAppointment && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm font-medium">
+                  {updateAppointment.lead?.first_name} {updateAppointment.lead?.last_name}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {format(new Date(updateAppointment.appointment_date), 'PPP p')}
+                </p>
+              </div>
+
+              {/* Check-in Status */}
+              <div className="space-y-2">
+                <Label>Check-in Status *</Label>
+                <Select value={checkInStatus} onValueChange={setCheckInStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select check-in status..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="paid_new_session">Paid for new session</SelectItem>
+                    <SelectItem value="follow_up_session">Follow up session</SelectItem>
+                    <SelectItem value="consultation_only">Consultation only</SelectItem>
+                    <SelectItem value="service_completed">Service completed</SelectItem>
+                    <SelectItem value="only_buy_medicine">Only buy medicine</SelectItem>
+                    <SelectItem value="rescheduled">Appointment rescheduled</SelectItem>
+                    <SelectItem value="no_show">No show</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Service/Product - Required for specific statuses */}
+              <div className="space-y-2">
+                <Label>
+                  Service/Product 
+                  {['paid_new_session', 'only_buy_medicine'].includes(checkInStatus) && (
+                    <span className="text-destructive"> *</span>
+                  )}
+                </Label>
+                <Popover open={openUpdateServiceCombo} onOpenChange={setOpenUpdateServiceCombo}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={openUpdateServiceCombo}
+                      className="w-full justify-between"
+                      disabled={!['paid_new_session', 'only_buy_medicine'].includes(checkInStatus)}
+                    >
+                      {updateServiceId
+                        ? branchServices?.find((service) => service.id === updateServiceId)?.name
+                        : "Select service..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search service..." />
+                      <CommandList>
+                        <CommandEmpty>No service found.</CommandEmpty>
+                        <CommandGroup>
+                          {branchServices?.map((service) => (
+                            <CommandItem
+                              key={service.id}
+                              value={service.name}
+                              onSelect={() => {
+                                setUpdateServiceId(service.id);
+                                setOpenUpdateServiceCombo(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  updateServiceId === service.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {service.name} - {service.category}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Revenue - Required for specific statuses */}
+              <div className="space-y-2">
+                <Label>
+                  Revenue
+                  {['paid_new_session', 'only_buy_medicine'].includes(checkInStatus) && (
+                    <span className="text-destructive"> *</span>
+                  )}
+                </Label>
+                <Input
+                  type="number"
+                  placeholder="Enter revenue amount..."
+                  value={updateRevenue}
+                  onChange={(e) => setUpdateRevenue(e.target.value)}
+                  disabled={!['paid_new_session', 'only_buy_medicine'].includes(checkInStatus)}
+                />
+              </div>
+
+              {/* Note from Clinic */}
+              <div className="space-y-2">
+                <Label>Note from Clinic</Label>
+                <Textarea
+                  placeholder="Add notes from the clinic..."
+                  value={noteFromClinic}
+                  onChange={(e) => setNoteFromClinic(e.target.value)}
+                  rows={3}
+                />
+              </div>
+
+              {/* Reschedule Fields - Only for rescheduled status */}
+              {checkInStatus === 'rescheduled' && (
+                <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                  <h4 className="font-semibold">New Appointment Details</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>New Date *</Label>
+                      <Input
+                        type="date"
+                        value={rescheduleDate}
+                        onChange={(e) => setRescheduleDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>New Time *</Label>
+                      <Input
+                        type="time"
+                        value={rescheduleTime}
+                        onChange={(e) => setRescheduleTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsUpdateModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleSubmitUpdate}
+                  disabled={updatePostAppointmentMutation.isPending}
+                >
+                  {updatePostAppointmentMutation.isPending ? 'Saving...' : 'Save Results'}
                 </Button>
               </div>
             </div>
