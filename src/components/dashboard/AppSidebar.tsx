@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Users, UserPlus, FileText, Calendar, Building2, Building } from 'lucide-react';
+import { Users, UserPlus, FileText, Calendar, Building2, Building, Clock } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 import {
   Sidebar,
@@ -60,6 +60,27 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* Testing Tools Section */}
+        {(isAdmin || isSalesManager) && (
+          <SidebarGroup>
+            <SidebarGroupLabel className={isCollapsed ? 'sr-only' : ''}>
+              Testing Tools
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink to="/dashboard/time-override" end className={getNavCls}>
+                      <Clock className={isCollapsed ? 'h-5 w-5' : 'mr-3 h-5 w-5'} />
+                      {!isCollapsed && <span>Time Override</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
     </Sidebar>
   );

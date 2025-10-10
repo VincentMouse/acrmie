@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Phone, Eye, Check, ChevronsUpDown, Search, Filter } from 'lucide-react';
+import { Calendar, Phone, Eye, Check, ChevronsUpDown, Search, Filter, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -22,6 +22,15 @@ export function AppointmentManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  
+  // State to force re-render when time override changes
+  const [, setTimeOverrideTrigger] = useState(0);
+  
+  // Get effective time (with override support)
+  const getEffectiveTime = (): Date => {
+    const stored = localStorage.getItem('timeOverride');
+    return stored ? new Date(stored) : new Date();
+  };
   
   // Search and filter states
   const [searchPhone, setSearchPhone] = useState('');
@@ -85,6 +94,19 @@ export function AppointmentManagement() {
   // Heartbeat and timer refs
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const releaseTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Listen for time override changes
+  useEffect(() => {
+    const handleTimeOverrideChange = () => {
+      setTimeOverrideTrigger(prev => prev + 1);
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    };
+
+    window.addEventListener('timeOverrideChanged', handleTimeOverrideChange);
+    return () => {
+      window.removeEventListener('timeOverrideChanged', handleTimeOverrideChange);
+    };
+  }, [queryClient]);
 
   // Fetch appointments with related data
   const { data: appointments, isLoading } = useQuery({
@@ -755,7 +777,7 @@ export function AppointmentManagement() {
     if (appointment.check_in_status) return false; // Already has check-in status
     
     const appointmentDate = new Date(appointment.appointment_date);
-    const today = new Date();
+    const today = getEffectiveTime();
     today.setHours(0, 0, 0, 0);
     
     const dayAfterAppointment = new Date(appointmentDate);
@@ -770,7 +792,7 @@ export function AppointmentManagement() {
     if (appointment.check_in_status !== 'no_show') return false;
     
     const checkInDate = new Date(appointment.check_in_updated_at);
-    const today = new Date();
+    const today = getEffectiveTime();
     const daysDiff = Math.floor((today.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
     
     return daysDiff <= 3;
@@ -798,11 +820,37 @@ export function AppointmentManagement() {
   }
 
   const upcomingAppointments = appointments?.filter(apt => 
-    new Date(apt.appointment_date) >= new Date() && !apt.is_completed
+    new Date(apt.appointment_date) >= getEffectiveTime() && !apt.is_completed
   );
+
+  const timeOverride = localStorage.getItem('timeOverride');
+  const effectiveTime = getEffectiveTime();
 
   return (
     <Card className="p-6">
+      {/* Time Override Indicator */}
+      {timeOverride && (
+        <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-yellow-600 dark:text-yellow-500" />
+            <span className="text-sm font-medium">Time Override Active</span>
+            <span className="text-xs text-muted-foreground">
+              Testing at: {effectiveTime.toLocaleString()}
+            </span>
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => {
+              localStorage.removeItem('timeOverride');
+              window.dispatchEvent(new CustomEvent('timeOverrideChanged'));
+            }}
+          >
+            Reset to Real Time
+          </Button>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold">Appointment Management</h2>
