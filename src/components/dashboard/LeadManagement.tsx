@@ -188,6 +188,13 @@ export function LeadManagement() {
     return () => window.removeEventListener('timeOverrideChanged', handleTimeOverrideChange);
   }, [queryClient]);
 
+  // Auto-set Call Outcome to "Appointment Booked" for L6
+  useEffect(() => {
+    if (statusUpdate === 'status_6') {
+      setCallOutcome('Appointment Booked');
+    }
+  }, [statusUpdate]);
+
   // Fetch cooldown settings
   const { data: settings } = useQuery({
     queryKey: ['lead-settings'],
@@ -555,8 +562,8 @@ export function LeadManagement() {
         status: statusUpdate as any,
         notes: statusUpdate === 'status_6' 
           ? (customerType === 'consultation' 
-              ? `[Consultation] Concern: ${concern} | Expectation: ${expectation} | Budget: ${budget} | Suggested Service: ${branchServices?.find(s => s.id === suggestedService)?.name || suggestedService}${additionalNotes ? ` | Notes: ${additionalNotes}` : ''}`
-              : `[Follow-up Session] Concurrent Service: ${branchServices?.find(s => s.id === concurrentService)?.name || concurrentService} | Session Number: ${sessionNumber}`)
+              ? `[Appointment Booked] [Consultation] Concern: ${concern} | Expectation: ${expectation} | Budget: ${budget} | Suggested Service: ${branchServices?.find(s => s.id === suggestedService)?.name || suggestedService}${additionalNotes ? ` | Notes: ${additionalNotes}` : ''}`
+              : `[Appointment Booked] [Follow-up Session] Concurrent Service: ${branchServices?.find(s => s.id === concurrentService)?.name || concurrentService} | Session Number: ${sessionNumber}`)
           : (callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`),
       };
 
@@ -1133,28 +1140,30 @@ export function LeadManagement() {
                   {/* Show additional fields only after status is selected */}
                   {statusUpdate && (
                     <>
-                      {/* Call Outcome - Hide for L6 */}
-                      {statusUpdate !== 'status_6' && (
-                        <div className="space-y-2">
-                          <Label htmlFor="call-outcome">Call Outcome *</Label>
-                          <Select 
-                            value={callOutcome} 
-                            onValueChange={setCallOutcome}
-                            disabled={statusUpdate === 'status_2'}
-                          >
-                            <SelectTrigger id="call-outcome">
-                              <SelectValue placeholder="Select outcome" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getCallOutcomes().map((outcome) => (
+                      {/* Call Outcome */}
+                      <div className="space-y-2">
+                        <Label htmlFor="call-outcome">Call Outcome *</Label>
+                        <Select 
+                          value={statusUpdate === 'status_6' ? 'Appointment Booked' : callOutcome} 
+                          onValueChange={setCallOutcome}
+                          disabled={statusUpdate === 'status_2' || statusUpdate === 'status_6'}
+                        >
+                          <SelectTrigger id="call-outcome">
+                            <SelectValue placeholder="Select outcome" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {statusUpdate === 'status_6' ? (
+                              <SelectItem value="Appointment Booked">Appointment Booked</SelectItem>
+                            ) : (
+                              getCallOutcomes().map((outcome) => (
                                 <SelectItem key={outcome} value={outcome}>
                                   {outcome}
                                 </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
                       {/* L6 Specific Fields */}
                       {statusUpdate === 'status_6' && (
