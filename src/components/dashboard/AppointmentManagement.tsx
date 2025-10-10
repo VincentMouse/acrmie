@@ -10,10 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Phone, Eye } from 'lucide-react';
+import { Calendar, Phone, Eye, Check, ChevronsUpDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 export function AppointmentManagement() {
   const { toast } = useToast();
@@ -50,6 +53,10 @@ export function AppointmentManagement() {
     serviceProduct: false,
     notes: false
   });
+
+  const [openServiceCombo, setOpenServiceCombo] = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  const [serviceDetails, setServiceDetails] = useState<{price: number, treatments: number} | null>(null);
   
   // View modal
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -122,12 +129,29 @@ export function AppointmentManagement() {
         .from('branches')
         .select('*')
         .order('name');
-
+      
       if (error) throw error;
       return data;
     },
   });
 
+  // Fetch services/products for selected branch
+  const { data: branchServices } = useQuery({
+    queryKey: ['branch-services', editableFields.branchId],
+    queryFn: async () => {
+      if (!editableFields.branchId) return [];
+      
+      const { data, error } = await supabase
+        .from('services_products')
+        .select('*')
+        .eq('branch_id', editableFields.branchId)
+        .order('name');
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!editableFields.branchId,
+  });
   // Claim appointment for processing
   const claimAppointmentMutation = useMutation({
     mutationFn: async (appointment: any) => {
@@ -353,6 +377,10 @@ export function AppointmentManagement() {
       releaseAppointmentMutation.mutate(callAppointment.id);
       setCallAppointment(null);
       setCallStatus('');
+      // Reset service selection states
+      setSelectedServiceId('');
+      setServiceDetails(null);
+      setOpenServiceCombo(false);
     }
     setIsCallModalOpen(open);
   };
@@ -678,11 +706,85 @@ export function AppointmentManagement() {
               <div className="flex items-center gap-2">
                 <div className="flex-1 space-y-2">
                   <Label>Service/Product</Label>
-                  <Input
-                    value={editableFields.serviceProduct}
-                    onChange={(e) => setEditableFields(prev => ({ ...prev, serviceProduct: e.target.value }))}
-                    disabled={!fieldEditStates.serviceProduct}
-                  />
+                  {fieldEditStates.serviceProduct ? (
+                    <div className="space-y-2">
+                      <Popover open={openServiceCombo} onOpenChange={setOpenServiceCombo}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openServiceCombo}
+                            className="w-full justify-between"
+                            disabled={!editableFields.branchId}
+                          >
+                            {selectedServiceId
+                              ? branchServices?.find((service) => service.id === selectedServiceId)?.name
+                              : editableFields.serviceProduct || "Select service..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search service..." />
+                            <CommandList>
+                              <CommandEmpty>No service found.</CommandEmpty>
+                              <CommandGroup>
+                                {branchServices?.map((service) => (
+                                  <CommandItem
+                                    key={service.id}
+                                    value={service.name}
+                                    onSelect={() => {
+                                      setSelectedServiceId(service.id);
+                                      setEditableFields(prev => ({ ...prev, serviceProduct: service.name }));
+                                      setServiceDetails({
+                                        price: service.price,
+                                        treatments: service.number_of_treatments || 0
+                                      });
+                                      setOpenServiceCombo(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        selectedServiceId === service.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {service.name} - {service.category}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      
+                      {serviceDetails && (
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Price</Label>
+                            <Input
+                              value={serviceDetails.price}
+                              readOnly
+                              className="bg-muted h-8 text-sm"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Number of Treatments</Label>
+                            <Input
+                              value={serviceDetails.treatments || 'N/A'}
+                              readOnly
+                              className="bg-muted h-8 text-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <Input
+                      value={editableFields.serviceProduct}
+                      disabled
+                    />
+                  )}
                 </div>
                 <Button
                   variant="outline"
