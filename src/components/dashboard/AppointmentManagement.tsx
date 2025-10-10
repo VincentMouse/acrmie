@@ -201,6 +201,25 @@ export function AppointmentManagement() {
     },
   });
 
+  // Release appointment when call is abandoned
+  const releaseAppointmentMutation = useMutation({
+    mutationFn: async (appointmentId: string) => {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          processing_by: null,
+          processing_at: null,
+        })
+        .eq('id', appointmentId)
+        .eq('processing_by', user?.id); // Only release if still assigned to current user
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    },
+  });
+
   // Finish call and update status
   const finishCallMutation = useMutation({
     mutationFn: async ({ appointmentId, status }: { appointmentId: string; status: string }) => {
@@ -326,6 +345,16 @@ export function AppointmentManagement() {
       appointmentId: callAppointment.id,
       status: callStatus,
     });
+  };
+
+  const handleCallModalClose = (open: boolean) => {
+    if (!open && callAppointment && !finishCallMutation.isPending) {
+      // Modal is being closed without finishing the call - release the appointment
+      releaseAppointmentMutation.mutate(callAppointment.id);
+      setCallAppointment(null);
+      setCallStatus('');
+    }
+    setIsCallModalOpen(open);
   };
 
   const handleRegisterAppointment = () => {
@@ -524,7 +553,7 @@ export function AppointmentManagement() {
       </div>
 
       {/* Call Processing Modal */}
-      <Dialog open={isCallModalOpen} onOpenChange={setIsCallModalOpen}>
+      <Dialog open={isCallModalOpen} onOpenChange={handleCallModalClose}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Process Appointment Call</DialogTitle>
