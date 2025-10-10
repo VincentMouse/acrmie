@@ -142,6 +142,7 @@ export function LeadManagement() {
   const [budget, setBudget] = useState<string>('');
   const [suggestedService, setSuggestedService] = useState<string>('');
   const [suggestedServiceDetails, setSuggestedServiceDetails] = useState<{price: number, treatments: number} | null>(null);
+  const [additionalSuggestedService, setAdditionalSuggestedService] = useState<string>('');
   const [additionalNotes, setAdditionalNotes] = useState<string>('');
   // Follow up session fields
   const [concurrentService, setConcurrentService] = useState<string>('');
@@ -149,6 +150,7 @@ export function LeadManagement() {
   const [sessionNumber, setSessionNumber] = useState<string>('');
   // Service search states
   const [openSuggestedServiceCombo, setOpenSuggestedServiceCombo] = useState(false);
+  const [openAdditionalServiceCombo, setOpenAdditionalServiceCombo] = useState(false);
   const [openConcurrentServiceCombo, setOpenConcurrentServiceCombo] = useState(false);
 
   // Fetch lead history for the current lead
@@ -551,7 +553,7 @@ export function LeadManagement() {
           if (!concern) throw new Error('Concern is required for consultation');
           if (!expectation) throw new Error('Expectation is required for consultation');
           if (!budget) throw new Error('Budget is required for consultation');
-          if (!suggestedService) throw new Error('Suggested service is required for consultation');
+          if (!suggestedService) throw new Error('Service/Product is required for consultation');
         } else if (customerType === 'followup') {
           if (!concurrentService) throw new Error('Concurrent service is required for follow-up');
           if (!sessionNumber) throw new Error('Session number is required for follow-up');
@@ -562,7 +564,7 @@ export function LeadManagement() {
         status: statusUpdate as any,
         notes: statusUpdate === 'status_6' 
           ? (customerType === 'consultation' 
-              ? `[Appointment Booked] [Consultation] Concern: ${concern} | Expectation: ${expectation} | Budget: ${budget} | Suggested Service: ${branchServices?.find(s => s.id === suggestedService)?.name || suggestedService}${additionalNotes ? ` | Notes: ${additionalNotes}` : ''}`
+              ? `[Appointment Booked] [Consultation] Concern: ${concern} | Expectation: ${expectation} | Budget: ${budget} | Service/Product: ${branchServices?.find(s => s.id === suggestedService)?.name || suggestedService}${additionalSuggestedService ? ` | Additional Suggested Service: ${branchServices?.find(s => s.id === additionalSuggestedService)?.name || additionalSuggestedService}` : ''}${additionalNotes ? ` | Notes: ${additionalNotes}` : ''}`
               : `[Appointment Booked] [Follow-up Session] Concurrent Service: ${branchServices?.find(s => s.id === concurrentService)?.name || concurrentService} | Session Number: ${sessionNumber}`)
           : (callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`),
       };
@@ -717,6 +719,7 @@ export function LeadManagement() {
       setExpectation('');
       setBudget('');
       setSuggestedService('');
+      setAdditionalSuggestedService('');
       setAdditionalNotes('');
       setConcurrentService('');
       setSessionNumber('');
@@ -1320,7 +1323,7 @@ export function LeadManagement() {
                               </div>
 
                               <div className="space-y-2">
-                                <Label htmlFor="suggested-service">Suggested Service *</Label>
+                                <Label htmlFor="suggested-service">Service/Product *</Label>
                                 <Popover open={openSuggestedServiceCombo} onOpenChange={setOpenSuggestedServiceCombo}>
                                   <PopoverTrigger asChild>
                                     <Button
@@ -1391,6 +1394,54 @@ export function LeadManagement() {
                                   </div>
                                 </div>
                               )}
+
+                              <div className="space-y-2">
+                                <Label htmlFor="additional-suggested-service">Additional Suggested Service</Label>
+                                <Popover open={openAdditionalServiceCombo} onOpenChange={setOpenAdditionalServiceCombo}>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="outline"
+                                      role="combobox"
+                                      aria-expanded={openAdditionalServiceCombo}
+                                      className="w-full justify-between"
+                                      disabled={!selectedBranch}
+                                    >
+                                      {additionalSuggestedService
+                                        ? branchServices?.find((service) => service.id === additionalSuggestedService)?.name
+                                        : "Select service (optional)..."}
+                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-full p-0" align="start">
+                                    <Command>
+                                      <CommandInput placeholder="Search service..." />
+                                      <CommandList>
+                                        <CommandEmpty>No service found.</CommandEmpty>
+                                        <CommandGroup>
+                                          {branchServices?.map((service) => (
+                                            <CommandItem
+                                              key={service.id}
+                                              value={service.name}
+                                              onSelect={() => {
+                                                setAdditionalSuggestedService(service.id);
+                                                setOpenAdditionalServiceCombo(false);
+                                              }}
+                                            >
+                                              <Check
+                                                className={cn(
+                                                  "mr-2 h-4 w-4",
+                                                  additionalSuggestedService === service.id ? "opacity-100" : "opacity-0"
+                                                )}
+                                              />
+                                              {service.name} - {service.category}
+                                            </CommandItem>
+                                          ))}
+                                        </CommandGroup>
+                                      </CommandList>
+                                    </Command>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
 
                               <div className="space-y-2">
                                 <Label htmlFor="additional-notes">Additional Notes</Label>
@@ -1686,11 +1737,13 @@ export function LeadManagement() {
                 setBudget('');
                 setSuggestedService('');
                 setSuggestedServiceDetails(null);
+                setAdditionalSuggestedService('');
                 setAdditionalNotes('');
                 setConcurrentService('');
                 setConcurrentServiceDetails(null);
                 setSessionNumber('');
                 setOpenSuggestedServiceCombo(false);
+                setOpenAdditionalServiceCombo(false);
                 setOpenConcurrentServiceCombo(false);
               }}
             >
