@@ -1985,6 +1985,8 @@ export function LeadManagement() {
                 {isLeadManagementPage && (
                   <TableCell>
                     {lead.assigned_at && (() => {
+                      // Reference timerTick to force re-render every second
+                      const _ = timerTick;
                       const timeRemaining = getAssignmentTimeRemaining(lead.assigned_at);
                       if (!timeRemaining) {
                         return <span className="text-destructive text-sm font-medium">Expired</span>;
