@@ -901,7 +901,7 @@ export function LeadManagement() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const thirtyMinutesAgo = getEffectiveTime();
+      const thirtyMinutesAgo = new Date(); // Use real time for assignment expiry
       thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
 
       // Find leads assigned to current user that have expired
@@ -953,7 +953,7 @@ export function LeadManagement() {
     if (!assignedAt) return null;
     
     const assigned = new Date(assignedAt);
-    const now = getEffectiveTime();
+    const now = new Date(); // Use real time for assignment countdown
     const thirtyMinutes = 30 * 60 * 1000;
     const elapsed = now.getTime() - assigned.getTime();
     const remaining = thirtyMinutes - elapsed;
