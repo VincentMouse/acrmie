@@ -794,10 +794,9 @@ export function AppointmentManagement() {
                       )}
                     </div>
                   ) : (
-                    <Input
-                      value={editableFields.serviceProduct}
-                      disabled
-                    />
+                    <div className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm">
+                      {editableFields.serviceProduct || '-'}
+                    </div>
                   )}
                 </div>
                 <Button
