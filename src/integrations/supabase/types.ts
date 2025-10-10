@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           appointment_date: string
           assigned_to: string
+          booking_id: string | null
           branch_id: string | null
           confirmation_status: string
           created_at: string | null
@@ -34,6 +35,7 @@ export type Database = {
         Insert: {
           appointment_date: string
           assigned_to: string
+          booking_id?: string | null
           branch_id?: string | null
           confirmation_status?: string
           created_at?: string | null
@@ -50,6 +52,7 @@ export type Database = {
         Update: {
           appointment_date?: string
           assigned_to?: string
+          booking_id?: string | null
           branch_id?: string | null
           confirmation_status?: string
           created_at?: string | null

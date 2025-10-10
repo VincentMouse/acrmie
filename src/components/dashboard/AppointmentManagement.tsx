@@ -10,8 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Phone, Edit2 } from 'lucide-react';
-import { differenceInDays, format } from 'date-fns';
+import { Calendar, Phone, Eye } from 'lucide-react';
+import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -19,26 +19,24 @@ export function AppointmentManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
+  
+  // Schedule appointment modal
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [appointmentDate, setAppointmentDate] = useState('');
-  const [notes, setNotes] = useState('');
+  const [scheduleNotes, setScheduleNotes] = useState('');
   
-  // Modal state for call processing
+  // Call processing modal
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
-  const [editingField, setEditingField] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState({
-    customerName: '',
-    phone: '',
-    branch: '',
-    appointmentDate: '',
-    appointmentTime: '',
-    service: '',
-    notes: '',
-    status: ''
-  });
+  const [callAppointment, setCallAppointment] = useState<any>(null);
+  const [callStatus, setCallStatus] = useState('');
+  
+  // View modal
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [viewAppointment, setViewAppointment] = useState<any>(null);
+  const [bookingId, setBookingId] = useState('');
 
+  // Fetch appointments with related data
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['appointments'],
     queryFn: async () => {
@@ -46,46 +44,20 @@ export function AppointmentManagement() {
         .from('appointments')
         .select(`
           *,
-          lead:leads(
-            first_name, 
-            last_name, 
-            phone, 
-            marketer_name,
-            assigned_to,
-            tele_sales:profiles!leads_assigned_to_fkey(full_name)
-          ),
+          lead:leads(first_name, last_name, phone, service_product, notes),
           branch:branches(name),
           time_slot:time_slots(slot_date, slot_time),
-          assigned:profiles!appointments_assigned_to_fkey(full_name)
+          assigned:profiles!appointments_assigned_to_fkey(full_name),
+          processing:profiles!appointments_processing_by_fkey(full_name)
         `)
         .order('appointment_date', { ascending: true });
 
       if (error) throw error;
-      
-      // Fetch processing user details separately
-      if (data && data.length > 0) {
-        const processingUserIds = data
-          .filter(apt => apt.processing_by)
-          .map(apt => apt.processing_by);
-        
-        if (processingUserIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, full_name')
-            .in('id', processingUserIds);
-          
-          // Map processing user names to appointments
-          return data.map(apt => ({
-            ...apt,
-            processing: profiles?.find(p => p.id === apt.processing_by)
-          }));
-        }
-      }
-      
       return data;
     },
   });
 
+  // Fetch status 6 leads for scheduling
   const { data: status6Leads } = useQuery({
     queryKey: ['status-6-leads'],
     queryFn: async () => {
@@ -100,11 +72,11 @@ export function AppointmentManagement() {
     },
   });
 
+  // Claim appointment for processing
   const claimAppointmentMutation = useMutation({
     mutationFn: async (appointment: any) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      // Use a transaction-like update with WHERE clause to handle race conditions
       const { data, error } = await supabase
         .from('appointments')
         .update({
@@ -112,44 +84,29 @@ export function AppointmentManagement() {
           processing_at: new Date().toISOString(),
         })
         .eq('id', appointment.id)
-        .is('processing_by', null) // Only update if not already claimed
+        .is('processing_by', null)
         .select()
         .single();
 
       if (error) throw error;
-      
-      // If no data returned, someone else claimed it first
-      if (!data) {
-        throw new Error('RACE_CONDITION');
-      }
+      if (!data) throw new Error('RACE_CONDITION');
 
       return { data, appointment };
     },
     onSuccess: ({ appointment }) => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      
+      // Extract service name from notes
+      const serviceName = appointment.lead?.service_product || '-';
+      
+      setCallAppointment(appointment);
+      setCallStatus(appointment.confirmation_status || 'pending');
+      setIsCallModalOpen(true);
+      
       toast({
         title: 'Call started',
         description: 'You are now processing this appointment',
       });
-      
-      // Open the call modal with appointment details
-      const serviceName = appointment.notes?.match(/Suggested Service: ([^\n]+)|Concurrent service: ([^\n]+)/)?.[1] || 
-                         appointment.notes?.match(/Suggested Service: ([^\n]+)|Concurrent service: ([^\n]+)/)?.[2] || '-';
-      
-      setSelectedAppointment(appointment);
-      setEditValues({
-        customerName: `${appointment.lead?.first_name || ''} ${appointment.lead?.last_name || ''}`,
-        phone: appointment.lead?.phone || '',
-        branch: appointment.branch?.name || '',
-        appointmentDate: appointment.time_slot?.slot_date 
-          ? format(new Date(appointment.time_slot.slot_date), 'yyyy-MM-dd')
-          : format(new Date(appointment.appointment_date), 'yyyy-MM-dd'),
-        appointmentTime: appointment.time_slot?.slot_time || format(new Date(appointment.appointment_date), 'HH:mm'),
-        service: serviceName,
-        notes: appointment.notes || '',
-        status: appointment.confirmation_status || 'pending'
-      });
-      setIsCallModalOpen(true);
     },
     onError: (error: any) => {
       if (error.message === 'RACE_CONDITION') {
@@ -169,10 +126,74 @@ export function AppointmentManagement() {
     },
   });
 
+  // Finish call and update status
+  const finishCallMutation = useMutation({
+    mutationFn: async ({ appointmentId, status }: { appointmentId: string; status: string }) => {
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          confirmation_status: status,
+          processing_by: null,
+          processing_at: null,
+        })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      setIsCallModalOpen(false);
+      setCallAppointment(null);
+      setCallStatus('');
+      
+      toast({
+        title: 'Call completed',
+        description: 'Appointment status updated successfully',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to update appointment status',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Register appointment with booking ID
+  const registerAppointmentMutation = useMutation({
+    mutationFn: async ({ appointmentId, bookingId }: { appointmentId: string; bookingId: string }) => {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ booking_id: bookingId })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      setIsViewModalOpen(false);
+      setViewAppointment(null);
+      setBookingId('');
+      
+      toast({
+        title: 'Appointment registered',
+        description: 'Booking ID has been saved successfully',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to register appointment',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Create new appointment
   const createAppointmentMutation = useMutation({
     mutationFn: async (data: any) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      if (!user?.id) throw new Error('Not authenticated');
 
       const { error } = await supabase.from('appointments').insert([{
         lead_id: data.leadId,
@@ -190,42 +211,14 @@ export function AppointmentManagement() {
         title: 'Appointment created',
         description: 'New appointment has been scheduled',
       });
-      setIsOpen(false);
+      setIsScheduleOpen(false);
       setSelectedLead(null);
       setAppointmentDate('');
-      setNotes('');
+      setScheduleNotes('');
     },
   });
 
-  const clearAllProcessingMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase
-        .from('appointments')
-        .update({
-          processing_by: null,
-          processing_at: null,
-        })
-        .not('processing_by', 'is', null);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      toast({
-        title: 'All processing states cleared',
-        description: 'All appointments are now available for processing',
-      });
-    },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to clear processing states',
-        variant: 'destructive',
-      });
-    },
-  });
-
-  const handleCreateAppointment = (e: React.FormEvent) => {
+  const handleScheduleAppointment = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!selectedLead || !appointmentDate) {
@@ -240,12 +233,46 @@ export function AppointmentManagement() {
     createAppointmentMutation.mutate({
       leadId: selectedLead.id,
       appointmentDate,
-      notes,
+      notes: scheduleNotes,
     });
   };
 
-  const getDaysUntilAppointment = (date: string) => {
-    return differenceInDays(new Date(date), new Date());
+  const handleFinishCall = () => {
+    if (!callAppointment || !callStatus) {
+      toast({
+        title: 'Validation error',
+        description: 'Please select a confirmation status',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    finishCallMutation.mutate({
+      appointmentId: callAppointment.id,
+      status: callStatus,
+    });
+  };
+
+  const handleRegisterAppointment = () => {
+    if (!viewAppointment || !bookingId.trim()) {
+      toast({
+        title: 'Validation error',
+        description: 'Please enter a booking ID',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    registerAppointmentMutation.mutate({
+      appointmentId: viewAppointment.id,
+      bookingId: bookingId.trim(),
+    });
+  };
+
+  const handleViewAppointment = (appointment: any) => {
+    setViewAppointment(appointment);
+    setBookingId(appointment.booking_id || '');
+    setIsViewModalOpen(true);
   };
 
   if (isLoading) {
@@ -256,42 +283,29 @@ export function AppointmentManagement() {
     new Date(apt.appointment_date) >= new Date() && !apt.is_completed
   );
 
-  const tomorrowAppointments = upcomingAppointments?.filter(apt => 
-    getDaysUntilAppointment(apt.appointment_date) === 1
-  );
-
   return (
     <Card className="p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-2xl font-bold">Appointment Management</h2>
           <p className="text-muted-foreground mt-1">
-            Schedule and manage appointments for status 6 leads
+            Manage customer appointments and confirmation
           </p>
         </div>
         
-        <div className="flex gap-2">
-          <Button
-            variant="destructive"
-            onClick={() => clearAllProcessingMutation.mutate()}
-            disabled={clearAllProcessingMutation.isPending}
-          >
-            Reset All Processing (Test)
-          </Button>
-          
-          <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Calendar className="w-4 h-4 mr-2" />
-                Schedule Appointment
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
+        <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Calendar className="w-4 h-4 mr-2" />
+              Schedule Appointment
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
             <DialogHeader>
               <DialogTitle>Schedule New Appointment</DialogTitle>
             </DialogHeader>
             
-            <form onSubmit={handleCreateAppointment} className="space-y-4">
+            <form onSubmit={handleScheduleAppointment} className="space-y-4">
               <div className="space-y-2">
                 <Label>Select Lead (Status 6) *</Label>
                 <select
@@ -324,11 +338,11 @@ export function AppointmentManagement() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
+                <Label htmlFor="scheduleNotes">Notes</Label>
                 <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  id="scheduleNotes"
+                  value={scheduleNotes}
+                  onChange={(e) => setScheduleNotes(e.target.value)}
                   placeholder="Add any notes about the appointment..."
                 />
               </div>
@@ -343,103 +357,89 @@ export function AppointmentManagement() {
             </form>
           </DialogContent>
         </Dialog>
-        </div>
       </div>
-
-      {tomorrowAppointments && tomorrowAppointments.length > 0 && (
-        <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-          <h3 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-2">
-            ⚠️ Appointments Tomorrow ({tomorrowAppointments.length})
-          </h3>
-          <div className="space-y-2">
-            {tomorrowAppointments.map((apt) => (
-              <div key={apt.id} className="text-sm">
-                {apt.lead?.first_name} {apt.lead?.last_name} - {format(new Date(apt.appointment_date), 'h:mm a')}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Customer Name</TableHead>
-              <TableHead>Phone Number</TableHead>
+              <TableHead>Service/Product</TableHead>
               <TableHead>Branch</TableHead>
               <TableHead>Appointment Date</TableHead>
               <TableHead>Appointment Time</TableHead>
-              <TableHead>Service/Product</TableHead>
-              <TableHead>Tele Sale Name</TableHead>
-              <TableHead>Marketer Name</TableHead>
-              <TableHead>Notes</TableHead>
-              <TableHead>Confirmation Status</TableHead>
               <TableHead>Assigned To</TableHead>
+              <TableHead>Confirmation Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {upcomingAppointments?.map((appointment) => {
-              const daysUntil = getDaysUntilAppointment(appointment.appointment_date);
-              
-              // Extract service/product name from notes (it's stored in the format that includes service details)
-              const serviceMatch = appointment.notes?.match(/Suggested Service: ([^\n]+)|Concurrent service: ([^\n]+)/);
-              const serviceName = serviceMatch ? (serviceMatch[1] || serviceMatch[2]) : '-';
+              const isRegistered = !!appointment.booking_id;
+              const isProcessing = !!appointment.processing_by;
+              const serviceName = appointment.lead?.service_product || '-';
               
               return (
-                <TableRow key={appointment.id}>
+                <TableRow 
+                  key={appointment.id}
+                  className={isRegistered ? 'bg-green-50 dark:bg-green-950/20' : ''}
+                >
                   <TableCell className="font-medium">
                     {appointment.lead?.first_name} {appointment.lead?.last_name}
                   </TableCell>
-                  <TableCell>{appointment.lead?.phone || '-'}</TableCell>
+                  <TableCell>{serviceName}</TableCell>
                   <TableCell>{appointment.branch?.name || '-'}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      {appointment.time_slot?.slot_date 
-                        ? format(new Date(appointment.time_slot.slot_date), 'PPP')
-                        : format(new Date(appointment.appointment_date), 'PPP')}
-                      {daysUntil === 0 && (
-                        <Badge variant="destructive">Today</Badge>
-                      )}
-                      {daysUntil === 1 && (
-                        <Badge variant="default">Tomorrow</Badge>
-                      )}
-                    </div>
+                    {appointment.time_slot?.slot_date 
+                      ? format(new Date(appointment.time_slot.slot_date), 'PPP')
+                      : format(new Date(appointment.appointment_date), 'PPP')}
                   </TableCell>
                   <TableCell>
                     {appointment.time_slot?.slot_time 
                       ? appointment.time_slot.slot_time 
                       : format(new Date(appointment.appointment_date), 'p')}
                   </TableCell>
-                  <TableCell>{serviceName}</TableCell>
-                  <TableCell>{appointment.lead?.tele_sales?.full_name || '-'}</TableCell>
-                  <TableCell>{appointment.lead?.marketer_name || '-'}</TableCell>
-                  <TableCell className="max-w-xs">
-                    <div className="truncate" title={appointment.notes || ''}>
-                      {appointment.notes || '-'}
-                    </div>
+                  <TableCell>
+                    {isProcessing ? (
+                      <Badge variant="default">
+                        {(appointment as any).processing?.full_name || 'Processing...'}
+                      </Badge>
+                    ) : (
+                      appointment.assigned?.full_name || '-'
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant={appointment.confirmation_status === 'confirmed' ? 'default' : 'secondary'}>
                       {appointment.confirmation_status}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    {appointment.processing_by ? (
-                      <Badge variant="default">
-                        Processing by {(appointment as any).processing?.full_name || 'Unknown'}
-                      </Badge>
-                    ) : (
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      {isProcessing && appointment.processing_by === user?.id ? (
+                        <Badge variant="outline">In Call...</Badge>
+                      ) : !isProcessing ? (
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => claimAppointmentMutation.mutate(appointment)}
+                          disabled={claimAppointmentMutation.isPending}
+                        >
+                          <Phone className="w-4 h-4 mr-2" />
+                          Call
+                        </Button>
+                      ) : (
+                        <Badge variant="secondary">Busy</Badge>
+                      )}
+                      
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => claimAppointmentMutation.mutate(appointment)}
-                        disabled={claimAppointmentMutation.isPending}
+                        onClick={() => handleViewAppointment(appointment)}
                       >
-                        <Phone className="w-4 h-4 mr-2" />
-                        Call
+                        <Eye className="w-4 h-4 mr-2" />
+                        View
                       </Button>
-                    )}
+                    </div>
                   </TableCell>
                 </TableRow>
               );
@@ -450,217 +450,186 @@ export function AppointmentManagement() {
 
       {/* Call Processing Modal */}
       <Dialog open={isCallModalOpen} onOpenChange={setIsCallModalOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Process Appointment Call</DialogTitle>
           </DialogHeader>
           
-          <div className="space-y-4">
-            {/* Customer Name */}
-            <div className="flex items-center gap-2">
-              <Label className="w-40">Customer Name:</Label>
-              {editingField === 'customerName' ? (
-                <Input
-                  value={editValues.customerName}
-                  onChange={(e) => setEditValues({ ...editValues, customerName: e.target.value })}
-                  onBlur={() => setEditingField(null)}
-                  autoFocus
-                />
-              ) : (
-                <>
-                  <span className="flex-1">{editValues.customerName}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setEditingField('customerName')}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                </>
+          {callAppointment && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg space-y-2">
+                <div className="flex justify-between">
+                  <span className="font-medium">Customer:</span>
+                  <span>{callAppointment.lead?.first_name} {callAppointment.lead?.last_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Phone:</span>
+                  <span>{callAppointment.lead?.phone}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Service:</span>
+                  <span>{callAppointment.lead?.service_product || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Branch:</span>
+                  <span>{callAppointment.branch?.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Date/Time:</span>
+                  <span>
+                    {format(new Date(callAppointment.appointment_date), 'PPP p')}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Update Confirmation Status *</Label>
+                <Select value={callStatus} onValueChange={setCallStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">C0: Pending</SelectItem>
+                    <SelectItem value="no_answer">C1: No Answer</SelectItem>
+                    <SelectItem value="reschedule">C2: Reschedule</SelectItem>
+                    <SelectItem value="cancelled">C3: Cancelled</SelectItem>
+                    <SelectItem value="confirmed">C6: Confirmed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setIsCallModalOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleFinishCall}
+                  disabled={finishCallMutation.isPending}
+                >
+                  {finishCallMutation.isPending ? 'Saving...' : 'Finish Call'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* View Appointment Modal */}
+      <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Appointment Details</DialogTitle>
+          </DialogHeader>
+          
+          {viewAppointment && (
+            <div className="space-y-6">
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg">Customer Information</h3>
+                <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                  <div>
+                    <span className="text-sm text-muted-foreground">Name</span>
+                    <p className="font-medium">
+                      {viewAppointment.lead?.first_name} {viewAppointment.lead?.last_name}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Phone</span>
+                    <p className="font-medium">{viewAppointment.lead?.phone}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold text-lg">Appointment Information</h3>
+                <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                  <div>
+                    <span className="text-sm text-muted-foreground">Service/Product</span>
+                    <p className="font-medium">{viewAppointment.lead?.service_product || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Branch</span>
+                    <p className="font-medium">{viewAppointment.branch?.name}</p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Date</span>
+                    <p className="font-medium">
+                      {format(new Date(viewAppointment.appointment_date), 'PPP')}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Time</span>
+                    <p className="font-medium">
+                      {viewAppointment.time_slot?.slot_time || format(new Date(viewAppointment.appointment_date), 'p')}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Confirmation Status</span>
+                    <p>
+                      <Badge variant={viewAppointment.confirmation_status === 'confirmed' ? 'default' : 'secondary'}>
+                        {viewAppointment.confirmation_status}
+                      </Badge>
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-sm text-muted-foreground">Assigned To</span>
+                    <p className="font-medium">{viewAppointment.assigned?.full_name || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {viewAppointment.notes && (
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg">Notes</h3>
+                  <div className="p-4 bg-muted rounded-lg">
+                    <p className="text-sm whitespace-pre-wrap">{viewAppointment.notes}</p>
+                  </div>
+                </div>
               )}
-            </div>
 
-            {/* Phone Number */}
-            <div className="flex items-center gap-2">
-              <Label className="w-40">Phone Number:</Label>
-              {editingField === 'phone' ? (
-                <Input
-                  value={editValues.phone}
-                  onChange={(e) => setEditValues({ ...editValues, phone: e.target.value })}
-                  onBlur={() => setEditingField(null)}
-                  autoFocus
-                />
-              ) : (
-                <>
-                  <span className="flex-1">{editValues.phone}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setEditingField('phone')}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
-            </div>
+              <div className="space-y-3 pt-4 border-t">
+                <h3 className="font-semibold text-lg">Clinic Registration</h3>
+                {viewAppointment.booking_id ? (
+                  <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-sm text-muted-foreground">Booking ID</span>
+                        <p className="font-medium text-lg">{viewAppointment.booking_id}</p>
+                      </div>
+                      <Badge variant="default">Registered</Badge>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Register this appointment to the clinic by entering the booking ID
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter booking ID..."
+                        value={bookingId}
+                        onChange={(e) => setBookingId(e.target.value)}
+                      />
+                      <Button 
+                        onClick={handleRegisterAppointment}
+                        disabled={registerAppointmentMutation.isPending}
+                      >
+                        {registerAppointmentMutation.isPending ? 'Registering...' : 'Register'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
-            {/* Branch */}
-            <div className="flex items-center gap-2">
-              <Label className="w-40">Branch:</Label>
-              {editingField === 'branch' ? (
-                <Input
-                  value={editValues.branch}
-                  onChange={(e) => setEditValues({ ...editValues, branch: e.target.value })}
-                  onBlur={() => setEditingField(null)}
-                  autoFocus
-                />
-              ) : (
-                <>
-                  <span className="flex-1">{editValues.branch}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setEditingField('branch')}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
+              <div className="flex justify-end pt-4">
+                <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>
+                  Close
+                </Button>
+              </div>
             </div>
-
-            {/* Appointment Date */}
-            <div className="flex items-center gap-2">
-              <Label className="w-40">Appointment Date:</Label>
-              {editingField === 'appointmentDate' ? (
-                <Input
-                  type="date"
-                  value={editValues.appointmentDate}
-                  onChange={(e) => setEditValues({ ...editValues, appointmentDate: e.target.value })}
-                  onBlur={() => setEditingField(null)}
-                  autoFocus
-                />
-              ) : (
-                <>
-                  <span className="flex-1">{editValues.appointmentDate}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setEditingField('appointmentDate')}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
-            </div>
-
-            {/* Appointment Time */}
-            <div className="flex items-center gap-2">
-              <Label className="w-40">Appointment Time:</Label>
-              {editingField === 'appointmentTime' ? (
-                <Input
-                  type="time"
-                  value={editValues.appointmentTime}
-                  onChange={(e) => setEditValues({ ...editValues, appointmentTime: e.target.value })}
-                  onBlur={() => setEditingField(null)}
-                  autoFocus
-                />
-              ) : (
-                <>
-                  <span className="flex-1">{editValues.appointmentTime}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setEditingField('appointmentTime')}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
-            </div>
-
-            {/* Service/Product */}
-            <div className="flex items-center gap-2">
-              <Label className="w-40">Service/Product:</Label>
-              {editingField === 'service' ? (
-                <Input
-                  value={editValues.service}
-                  onChange={(e) => setEditValues({ ...editValues, service: e.target.value })}
-                  onBlur={() => setEditingField(null)}
-                  autoFocus
-                />
-              ) : (
-                <>
-                  <span className="flex-1">{editValues.service}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setEditingField('service')}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
-            </div>
-
-            {/* Notes */}
-            <div className="flex items-start gap-2">
-              <Label className="w-40 mt-2">Notes:</Label>
-              {editingField === 'notes' ? (
-                <Textarea
-                  value={editValues.notes}
-                  onChange={(e) => setEditValues({ ...editValues, notes: e.target.value })}
-                  onBlur={() => setEditingField(null)}
-                  autoFocus
-                  rows={3}
-                  className="flex-1"
-                />
-              ) : (
-                <>
-                  <span className="flex-1 whitespace-pre-wrap">{editValues.notes}</span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setEditingField('notes')}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                </>
-              )}
-            </div>
-
-            {/* Status */}
-            <div className="flex items-center gap-2">
-              <Label className="w-40">Status:</Label>
-              <Select value={editValues.status} onValueChange={(value) => setEditValues({ ...editValues, status: value })}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">C0: Pending</SelectItem>
-                  <SelectItem value="no_answer">C1: No Answer</SelectItem>
-                  <SelectItem value="reschedule">C2: Appointment reschedule</SelectItem>
-                  <SelectItem value="cancelled">C3: Cancel appointment</SelectItem>
-                  <SelectItem value="confirmed">C6: Confirmed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex justify-end gap-2 mt-6">
-              <Button variant="outline" onClick={() => setIsCallModalOpen(false)}>
-                Close
-              </Button>
-              <Button onClick={() => {
-                // TODO: Save changes
-                toast({
-                  title: 'Changes saved',
-                  description: 'Appointment details updated successfully',
-                });
-                setIsCallModalOpen(false);
-              }}>
-                Save Changes
-              </Button>
-            </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
     </Card>
