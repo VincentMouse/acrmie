@@ -306,16 +306,41 @@ export function AppointmentManagement() {
   // Finish call and update status
   const finishCallMutation = useMutation({
     mutationFn: async ({ appointmentId, status }: { appointmentId: string; status: string }) => {
+      // Combine appointment date and time
+      const combinedDateTime = `${editableFields.appointmentDate}T${editableFields.appointmentTime}:00`;
+      
       const { error } = await supabase
         .from('appointments')
         .update({
           confirmation_status: status,
           processing_by: null,
           processing_at: null,
+          appointment_date: combinedDateTime,
+          branch_id: editableFields.branchId,
+          notes: editableFields.notes,
+          service_product: selectedServiceId || editableFields.serviceProduct,
         })
         .eq('id', appointmentId);
 
       if (error) throw error;
+      
+      // Update lead info if phone or name changed
+      if (callAppointment?.lead_id) {
+        const nameParts = editableFields.customerName.trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+        
+        const { error: leadError } = await supabase
+          .from('leads')
+          .update({
+            first_name: firstName,
+            last_name: lastName,
+            phone: editableFields.phone,
+          })
+          .eq('id', callAppointment.lead_id);
+        
+        if (leadError) throw leadError;
+      }
     },
     onSuccess: () => {
       // Clear heartbeat
