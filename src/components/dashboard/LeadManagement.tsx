@@ -113,6 +113,32 @@ const calculateL1Cooldown = (currentPeriod: number, lastContactPeriod: number | 
 export function LeadManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Quick unassign mutation for admin
+  const quickUnassignMutation = useMutation({
+    mutationFn: async (phone: string) => {
+      const { error } = await supabase
+        .from('leads')
+        .update({ 
+          assigned_to: null, 
+          assigned_at: null 
+        })
+        .eq('phone', phone);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast({ title: 'Lead unassigned successfully' });
+    },
+    onError: (error) => {
+      toast({ 
+        title: 'Error unassigning lead', 
+        description: error.message,
+        variant: 'destructive' 
+      });
+    },
+  });
   const location = useLocation();
   const { isTeleSales, isAdmin, isSalesManager } = useUserRole();
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -175,6 +201,15 @@ export function LeadManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const leadsPerPage = 10;
+  
+  // Auto-unassign specific lead - remove after execution
+  useEffect(() => {
+    const hasUnassigned = localStorage.getItem('unassigned_9484414883');
+    if (!hasUnassigned) {
+      quickUnassignMutation.mutate('9484414883');
+      localStorage.setItem('unassigned_9484414883', 'true');
+    }
+  }, []);
   
   // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
   const isLeadManagementPage = location.pathname === '/dashboard/lead-management';
