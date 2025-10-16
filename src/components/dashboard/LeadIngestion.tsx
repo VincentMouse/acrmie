@@ -112,7 +112,7 @@ export function LeadIngestion() {
         campaign_name: data.campaignName,
         marketer_name: data.marketerName,
         notes: data.marketerNotes || null,
-        status: 'status_0' as const,
+        status: 'L0-Fresh Lead' as const,
         created_by: user.id,
         funnel_id: null,
         is_duplicate: duplicates && duplicates.length > 0,

@@ -212,7 +212,7 @@ export function AppointmentManagement() {
       const { data, error } = await supabase
         .from('leads')
         .select('*')
-        .eq('status', 'status_6')
+        .eq('status', 'L6-Appointment set')
         .is('assigned_to', null);
 
       if (error) throw error;

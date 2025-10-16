@@ -175,11 +175,11 @@ export function Customers() {
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      status_0: 'bg-gray-500',
-      status_1: 'bg-blue-500',
-      status_2: 'bg-yellow-500',
-      status_3: 'bg-green-500',
-      status_4: 'bg-red-500',
+      'L0-Fresh Lead': 'bg-gray-500',
+      'L1-Call back': 'bg-blue-500',
+      'L2-Call reschedule': 'bg-yellow-500',
+      'L3-Cancelled': 'bg-green-500',
+      'L4-Blacklisted': 'bg-red-500',
     };
     return colors[status] || 'bg-gray-500';
   };

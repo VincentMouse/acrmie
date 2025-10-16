@@ -78,7 +78,7 @@ export function MessengerLeadIngestion() {
         campaign_name: data.campaignName,
         marketer_name: data.marketerName,
         notes: data.marketerNotes || null,
-        status: 'status_1' as const, // Messenger leads start at status_1 (appointment scheduled)
+        status: 'L1-Call back' as const, // Messenger leads start at L1 (call back)
         created_by: user.id,
         funnel_id: null,
         is_duplicate: duplicates && duplicates.length > 0,

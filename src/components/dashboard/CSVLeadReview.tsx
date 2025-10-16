@@ -138,7 +138,7 @@ export function CSVLeadReview({ leads, onComplete, onCancel }: CSVLeadReviewProp
             campaign_name: lead.campaignName,
             marketer_name: lead.marketerName,
             notes: lead.marketerNotes || null,
-            status: 'status_0' as const,
+            status: 'L0-Fresh Lead' as const,
             created_by: user.id,
             funnel_id: null,
             is_duplicate: lead.isDuplicate,

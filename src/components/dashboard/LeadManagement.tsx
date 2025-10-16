@@ -23,14 +23,14 @@ import { TimeOverrideTool } from './TimeOverrideTool';
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 const STATUS_LABELS = {
-  status_0: 'L0 - Fresh Lead',
-  status_1: 'L1 - Call Back',
-  status_2: 'L2 - Call Rescheduled',
-  status_3: 'L3 - Cancelled',
-  status_4: 'L4 - Blacklisted',
-  status_5: 'L5 - Thinking',
-  status_6: 'L6 - Appointment Set',
-  hibernation: 'Hibernation',
+  'L0-Fresh Lead': 'L0 - Fresh Lead',
+  'L1-Call back': 'L1 - Call Back',
+  'L2-Call reschedule': 'L2 - Call Rescheduled',
+  'L3-Cancelled': 'L3 - Cancelled',
+  'L4-Blacklisted': 'L4 - Blacklisted',
+  'L5-Thinking': 'L5 - Thinking',
+  'L6-Appointment set': 'L6 - Appointment Set',
+  'hibernation': 'Hibernation',
 };
 
 // L1 Time Period helpers
@@ -192,7 +192,7 @@ export function LeadManagement() {
 
   // Auto-set Call Outcome to "Appointment Booked" for L6
   useEffect(() => {
-    if (statusUpdate === 'status_6') {
+    if (statusUpdate === 'L6-Appointment set') {
       setCallOutcome('Appointment Booked');
     }
   }, [statusUpdate]);
@@ -279,7 +279,7 @@ export function LeadManagement() {
 
       // For Lead Management page, only show leads assigned to current user (excluding L2 - Call Rescheduled and Hibernation)
       if (isLeadManagementPage && user) {
-        query = query.eq('assigned_to', user.id).neq('status', 'status_2').neq('status', 'hibernation');
+        query = query.eq('assigned_to', user.id).neq('status', 'L2-Call reschedule').neq('status', 'hibernation');
       }
 
       // Exclude hibernation leads from normal view unless filtered specifically
@@ -328,7 +328,7 @@ export function LeadManagement() {
               await supabase
                 .from('leads')
                 .update({
-                  status: 'status_1',
+                  status: 'L1-Call back',
                   l1_contact_count: 0,
                   l1_period_1_count: 0,
                   l1_period_2_count: 0,
@@ -380,7 +380,7 @@ export function LeadManagement() {
           assigned:profiles!leads_assigned_to_fkey(full_name)
         `)
         .eq('assigned_to', user.id)
-        .eq('status', 'status_2')
+        .eq('status', 'L2-Call reschedule')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -430,7 +430,7 @@ export function LeadManagement() {
         .from('leads')
         .select('id')
         .eq('assigned_to', user.id)
-        .neq('status', 'status_2');
+        .neq('status', 'L2-Call reschedule');
 
       if (existingLeads && existingLeads.length > 0) {
         throw new Error('You must complete your current lead before getting a new one');
@@ -442,7 +442,7 @@ export function LeadManagement() {
       let { data: availableLead } = await supabase
         .from('leads')
         .select('*')
-        .eq('status', 'status_0')
+        .eq('status', 'L0-Fresh Lead')
         .is('assigned_to', null)
         .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
         .limit(1)
@@ -453,7 +453,7 @@ export function LeadManagement() {
         const result = await supabase
           .from('leads')
           .select('*')
-          .eq('status', 'status_1')
+          .eq('status', 'L1-Call back')
           .is('assigned_to', null)
           .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
           .limit(1)
@@ -466,7 +466,7 @@ export function LeadManagement() {
         const result = await supabase
           .from('leads')
           .select('*')
-          .eq('status', 'status_5')
+          .eq('status', 'L5-Thinking')
           .is('assigned_to', null)
           .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
           .limit(1)
@@ -505,7 +505,7 @@ export function LeadManagement() {
       const updates: any = { status: status as any };
       
       // Auto-apply cooldown for L5
-      if (status === 'status_5') {
+      if (status === 'L5-Thinking') {
         const setting = settings?.find(s => s.setting_key === 'l5_cooldown_hours');
         
         if (setting && setting.setting_value > 0) {
@@ -537,13 +537,13 @@ export function LeadManagement() {
       if (!statusUpdate) throw new Error('Status update is required');
 
       // Validate L2 specific fields
-      if (statusUpdate === 'status_2') {
+      if (statusUpdate === 'L2-Call reschedule') {
         if (!callbackDate) throw new Error('Callback date is required for L2');
         if (!callbackTime) throw new Error('Callback time is required for L2');
       }
 
       // Validate L6 specific fields
-      if (statusUpdate === 'status_6') {
+      if (statusUpdate === 'L6-Appointment set') {
         if (!customerType) throw new Error('Customer type is required for L6');
         if (!selectedBranch) throw new Error('Branch is required for L6');
         if (!appointmentDate) throw new Error('Appointment date is required for L6');
@@ -562,7 +562,7 @@ export function LeadManagement() {
 
       const updates: any = { 
         status: statusUpdate as any,
-        notes: statusUpdate === 'status_6' 
+        notes: statusUpdate === 'L6-Appointment set' 
           ? (customerType === 'consultation' 
               ? `[Appointment Booked] [Consultation] Concern: ${concern} | Expectation: ${expectation} | Budget: ${budget} | Service/Product: ${branchServices?.find(s => s.id === suggestedService)?.name || suggestedService}${additionalSuggestedService ? ` | Additional Suggested Service: ${branchServices?.find(s => s.id === additionalSuggestedService)?.name || additionalSuggestedService}` : ''}${additionalNotes ? ` | Notes: ${additionalNotes}` : ''}`
               : `[Appointment Booked] [Follow-up Session] Concurrent Service: ${branchServices?.find(s => s.id === concurrentService)?.name || concurrentService} | Session Number: ${sessionNumber}`)
@@ -570,7 +570,7 @@ export function LeadManagement() {
       };
 
       // Handle L1 custom cooldown logic
-      if (statusUpdate === 'status_1') {
+      if (statusUpdate === 'L1-Call back') {
         const currentPeriod = getCurrentTimePeriod();
         const currentContactCount = pulledLead.l1_contact_count || 0;
         
@@ -619,7 +619,7 @@ export function LeadManagement() {
       }
 
       // Handle L2 (Call Rescheduled) assignment logic
-      if (statusUpdate === 'status_2') {
+      if (statusUpdate === 'L2-Call reschedule') {
         if (assignTo === 'self') {
           // Keep assigned to current user for self-managed callback
           updates.assigned_to = pulledLead.assigned_to;
@@ -643,7 +643,7 @@ export function LeadManagement() {
       }
       
       // Auto-apply cooldown for L5
-      if (statusUpdate === 'status_5') {
+      if (statusUpdate === 'L5-Thinking') {
         const setting = settings?.find(s => s.setting_key === 'l5_cooldown_hours');
         
         if (setting && setting.setting_value > 0) {
@@ -651,7 +651,7 @@ export function LeadManagement() {
           cooldownUntil.setHours(cooldownUntil.getHours() + Number(setting.setting_value));
           updates.cooldown_until = cooldownUntil.toISOString();
         }
-      } else if (statusUpdate !== 'status_1') {
+      } else if (statusUpdate !== 'L1-Call back') {
         // Clear cooldown for other statuses (except L1 which has custom cooldown)
         updates.cooldown_until = null;
       }
@@ -664,7 +664,7 @@ export function LeadManagement() {
       if (error) throw error;
 
       // Create appointment for L6
-      if (statusUpdate === 'status_6' && appointmentTimeSlot) {
+      if (statusUpdate === 'L6-Appointment set' && appointmentTimeSlot) {
         const { data: { user } } = await supabase.auth.getUser();
         
         const appointmentDateTime = new Date(appointmentDate!);
@@ -850,7 +850,7 @@ export function LeadManagement() {
 
   // Auto-set call outcome when L2 is selected, and reset when status changes
   useEffect(() => {
-    if (statusUpdate === 'status_2') {
+    if (statusUpdate === 'L2-Call reschedule') {
       setCallOutcome('Call Rescheduled');
       // If user has 5+ self-managed L2 leads, force assign to team
       if (selfManagedL2Count >= 5) {
@@ -924,7 +924,7 @@ export function LeadManagement() {
             .update({ 
               assigned_to: null,
               assigned_at: null,
-              status: 'status_0'
+              status: 'L0-Fresh Lead'
             })
             .eq('id', lead.id);
         }
@@ -1015,25 +1015,25 @@ export function LeadManagement() {
 
   // Get filtered call outcomes based on status
   const getCallOutcomes = () => {
-    if (statusUpdate === 'status_1') {
+    if (statusUpdate === 'L1-Call back') {
       return L1_CALL_OUTCOMES;
     }
-    if (statusUpdate === 'status_3') {
+    if (statusUpdate === 'L3-Cancelled') {
       return L3_CALL_OUTCOMES;
     }
-    if (statusUpdate === 'status_4') {
+    if (statusUpdate === 'L4-Blacklisted') {
       return L4_CALL_OUTCOMES;
     }
-    if (statusUpdate === 'status_5') {
+    if (statusUpdate === 'L5-Thinking') {
       return L5_CALL_OUTCOMES;
     }
-    if (statusUpdate === 'status_6') {
+    if (statusUpdate === 'L6-Appointment set') {
       return L6_CALL_OUTCOMES;
     }
     return CALL_OUTCOMES;
   };
 
-  const AVAILABLE_STATUSES = Object.entries(STATUS_LABELS).filter(([key]) => key !== 'status_0');
+  const AVAILABLE_STATUSES = Object.entries(STATUS_LABELS).filter(([key]) => key !== 'L0-Fresh Lead');
 
   if (isLoading) {
     return <div className="text-center py-8">Loading leads...</div>;
@@ -1160,15 +1160,15 @@ export function LeadManagement() {
                       <div className="space-y-2">
                         <Label htmlFor="call-outcome">Call Outcome *</Label>
                         <Select 
-                          value={statusUpdate === 'status_6' ? 'Appointment Booked' : callOutcome} 
+                          value={statusUpdate === 'L6-Appointment set' ? 'Appointment Booked' : callOutcome} 
                           onValueChange={setCallOutcome}
-                          disabled={statusUpdate === 'status_2' || statusUpdate === 'status_6'}
+                          disabled={statusUpdate === 'L2-Call reschedule' || statusUpdate === 'L6-Appointment set'}
                         >
                           <SelectTrigger id="call-outcome">
                             <SelectValue placeholder="Select outcome" />
                           </SelectTrigger>
                           <SelectContent>
-                            {statusUpdate === 'status_6' ? (
+                            {statusUpdate === 'L6-Appointment set' ? (
                               <SelectItem value="Appointment Booked">Appointment Booked</SelectItem>
                             ) : (
                               getCallOutcomes().map((outcome) => (
@@ -1182,7 +1182,7 @@ export function LeadManagement() {
                       </div>
 
                       {/* L6 Specific Fields */}
-                      {statusUpdate === 'status_6' && (
+                      {statusUpdate === 'L6-Appointment set' && (
                         <>
                           <div className="space-y-2">
                             <Label htmlFor="customer-type">Type of Customer *</Label>
@@ -1550,7 +1550,7 @@ export function LeadManagement() {
                       )}
 
                       {/* L2 Specific Fields */}
-                      {statusUpdate === 'status_2' && (
+                      {statusUpdate === 'L2-Call reschedule' && (
                         <>
                           <div className="space-y-2">
                             <Label htmlFor="callback-date">Time of Callback *</Label>
@@ -1627,7 +1627,7 @@ export function LeadManagement() {
                       )}
 
                       {/* L5 Specific Fields */}
-                      {statusUpdate === 'status_5' && (
+                      {statusUpdate === 'L5-Thinking' && (
                         <div className="space-y-2">
                           <Label htmlFor="call-back-in">Call Back In *</Label>
                           <Select value={callBackIn} onValueChange={setCallBackIn}>
@@ -1645,7 +1645,7 @@ export function LeadManagement() {
                       )}
 
                       {/* Call Notes - Hide for L6 */}
-                      {statusUpdate !== 'status_6' && (
+                      {statusUpdate !== 'L6-Appointment set' && (
                         <div className="space-y-2">
                           <Label htmlFor="call-notes">Call Notes</Label>
                           <Textarea
@@ -1754,10 +1754,10 @@ export function LeadManagement() {
               disabled={
                 !statusUpdate || 
                 submitCallMutation.isPending ||
-                (statusUpdate !== 'status_6' && !callOutcome) ||
-                (statusUpdate === 'status_2' && (!callbackDate || !callbackTime)) ||
-                (statusUpdate === 'status_5' && !callBackIn) ||
-                (statusUpdate === 'status_6' && (!customerType || !selectedBranch || !appointmentDate || !appointmentTimeSlot ||
+                (statusUpdate !== 'L6-Appointment set' && !callOutcome) ||
+                (statusUpdate === 'L2-Call reschedule' && (!callbackDate || !callbackTime)) ||
+                (statusUpdate === 'L5-Thinking' && !callBackIn) ||
+                (statusUpdate === 'L6-Appointment set' && (!customerType || !selectedBranch || !appointmentDate || !appointmentTimeSlot ||
                   (customerType === 'consultation' && (!concern || !expectation || !budget || !suggestedService)) ||
                   (customerType === 'followup' && (!concurrentService || !sessionNumber))))
               }
@@ -2010,7 +2010,7 @@ export function LeadManagement() {
                 )}
                 {!isLeadManagementPage && (
                   <TableCell>
-                    {lead.status === 'status_1' ? (
+                    {lead.status === 'L1-Call back' ? (
                       <div className="flex flex-col gap-1">
                         <Badge variant="secondary" className="w-fit">
                           {lead.l1_contact_count || 0}/6 calls
@@ -2061,7 +2061,7 @@ export function LeadManagement() {
                 )}
                 {isLeadManagementPage && (
                   <TableCell>
-                    {!lead.assigned_to && isTeleSales && lead.status === 'status_0' && (
+                    {!lead.assigned_to && isTeleSales && lead.status === 'L0-Fresh Lead' && (
                       <Button
                         size="sm"
                         onClick={() => assignToMeMutation.mutate(lead.id)}
