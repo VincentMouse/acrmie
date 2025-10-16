@@ -636,11 +636,8 @@ export function LeadManagement() {
           const callbackDateTime = setMinutes(setHours(callbackDate, parseInt(hours)), parseInt(minutes));
           updates.notes = `${updates.notes} | Callback: ${format(callbackDateTime, 'PPp')}`;
         }
-      } else {
-        // For other statuses, unassign the lead
-        updates.assigned_to = null;
-        updates.assigned_at = null;
       }
+      // For all other statuses, keep the lead assigned to the current user (unless hibernation which already unassigns above)
       
       // Auto-apply cooldown for L5
       if (statusUpdate === 'L5-Thinking') {
