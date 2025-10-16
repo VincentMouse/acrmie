@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertTriangle, Plus } from 'lucide-react';
 import { z } from 'zod';
+import { validatePhoneNumber } from '@/lib/phoneValidation';
 
 const messengerLeadSchema = z.object({
   phone: z.string().trim().min(10, 'Phone must be at least 10 digits'),
@@ -55,8 +56,14 @@ export function MessengerLeadIngestion() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Check for duplicates
-      const duplicates = await checkDuplicateMutation.mutateAsync(data.phone);
+      // Validate and normalize phone
+      const phoneValidation = validatePhoneNumber(data.phone);
+      if (!phoneValidation.isValid) {
+        throw new Error(`Invalid phone number: ${phoneValidation.error}`);
+      }
+
+      // Check for duplicates using normalized phone
+      const duplicates = await checkDuplicateMutation.mutateAsync(phoneValidation.normalized);
       
       const [firstName, ...lastNameParts] = data.customerName.trim().split(' ');
       const lastName = lastNameParts.join(' ') || firstName;
@@ -64,7 +71,7 @@ export function MessengerLeadIngestion() {
       const leadData = {
         first_name: firstName,
         last_name: lastName,
-        phone: data.phone,
+        phone: phoneValidation.normalized,
         email: data.email || null,
         address: data.address || null,
         service_product: data.serviceProduct,

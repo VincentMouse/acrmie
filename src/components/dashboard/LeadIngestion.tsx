@@ -13,6 +13,8 @@ import { Upload, Plus } from 'lucide-react';
 import Papa from 'papaparse';
 import { z } from 'zod';
 import { MessengerLeadIngestion } from './MessengerLeadIngestion';
+import { CSVLeadReview } from './CSVLeadReview';
+import { validatePhoneNumber } from '@/lib/phoneValidation';
 
 const leadSchema = z.object({
   phone: z.string().trim().min(10, 'Phone must be at least 10 digits'),
@@ -41,6 +43,8 @@ export function LeadIngestion() {
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [uploadResults, setUploadResults] = useState<{ success: number; failed: number } | null>(null);
+  const [parsedLeads, setParsedLeads] = useState<any[]>([]);
+  const [showReviewScreen, setShowReviewScreen] = useState(false);
   const [formData, setFormData] = useState({
     phone: '',
     customerName: '',
@@ -79,80 +83,21 @@ export function LeadIngestion() {
     },
   });
 
-  const bulkCreateLeadsMutation = useMutation({
-    mutationFn: async (leads: any[]) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const results = { success: 0, failed: 0 };
-      
-      for (const lead of leads) {
-        try {
-          // Check for duplicates
-          const { data: duplicates } = await supabase
-            .from('leads')
-            .select('id, first_name, last_name, phone')
-            .eq('phone', lead.phone)
-            .limit(1);
-
-          const [firstName, ...lastNameParts] = lead.customerName.trim().split(' ');
-          const lastName = lastNameParts.join(' ') || firstName;
-
-          const leadData = {
-            first_name: firstName,
-            last_name: lastName,
-            phone: lead.phone,
-            email: lead.email || null,
-            address: lead.address || null,
-            service_product: lead.serviceProduct,
-            campaign_name: lead.campaignName,
-            marketer_name: lead.marketerName,
-            notes: lead.marketerNotes || null,
-            status: 'status_0' as const,
-            created_by: user.id,
-            funnel_id: null,
-            is_duplicate: duplicates && duplicates.length > 0,
-            duplicate_of: duplicates && duplicates.length > 0 ? duplicates[0].id : null,
-          };
-
-          const { error } = await supabase.from('leads').insert([leadData]);
-          
-          if (error) throw error;
-          results.success++;
-        } catch (error) {
-          console.error('Failed to create lead:', error);
-          results.failed++;
-        }
-      }
-      
-      return results;
-    },
-    onSuccess: (results) => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      setUploadResults(results);
-      
-      toast({
-        title: 'CSV Import Complete',
-        description: `Successfully imported ${results.success} leads. ${results.failed > 0 ? `${results.failed} failed.` : ''}`,
-        variant: results.failed > 0 ? 'destructive' : 'default',
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Failed to import leads',
-        description: error.message,
-        variant: 'destructive',
-      });
-    },
-  });
+  // Removed bulkCreateLeadsMutation - now handled in CSVLeadReview component
 
   const createLeadMutation = useMutation({
     mutationFn: async (data: any) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Check for duplicates
-      const duplicates = await checkDuplicateMutation.mutateAsync(data.phone);
+      // Validate and normalize phone
+      const phoneValidation = validatePhoneNumber(data.phone);
+      if (!phoneValidation.isValid) {
+        throw new Error(`Invalid phone number: ${phoneValidation.error}`);
+      }
+
+      // Check for duplicates using normalized phone
+      const duplicates = await checkDuplicateMutation.mutateAsync(phoneValidation.normalized);
       
       const [firstName, ...lastNameParts] = data.customerName.trim().split(' ');
       const lastName = lastNameParts.join(' ') || firstName;
@@ -160,7 +105,7 @@ export function LeadIngestion() {
       const leadData = {
         first_name: firstName,
         last_name: lastName,
-        phone: data.phone,
+        phone: phoneValidation.normalized,
         email: data.email || null,
         address: data.address || null,
         service_product: data.serviceProduct,
@@ -216,30 +161,29 @@ export function LeadIngestion() {
       skipEmptyLines: true,
       complete: (results) => {
         try {
-          const validatedLeads = results.data.map((row: any, index: number) => {
+          const parsedLeads = results.data.map((row: any, index: number) => {
             try {
-              return csvLeadSchema.parse({
-                phone: row['Phone Number'] || row['phone'],
-                customerName: row['Customer Name'] || row['customerName'],
+              // Basic parsing without validation - validation happens in review screen
+              return {
+                phone: row['Phone Number'] || row['phone'] || '',
+                customerName: row['Customer Name'] || row['customerName'] || '',
                 email: row['Email Address'] || row['email'] || '',
                 address: row['Customer Address'] || row['address'] || '',
-                serviceProduct: row['Service/Product'] || row['serviceProduct'],
-                campaignName: row['Campaign Name'] || row['campaignName'],
-                marketerName: row['Marketer Name'] || row['marketerName'],
+                serviceProduct: row['Service/Product'] || row['serviceProduct'] || '',
+                campaignName: row['Campaign Name'] || row['campaignName'] || '',
+                marketerName: row['Marketer Name'] || row['marketerName'] || '',
                 marketerNotes: row['Marketer Notes'] || row['marketerNotes'] || '',
-              });
+              };
             } catch (error) {
-              if (error instanceof z.ZodError) {
-                throw new Error(`Row ${index + 1}: ${error.errors[0].message}`);
-              }
-              throw error;
+              throw new Error(`Row ${index + 1}: Failed to parse`);
             }
           });
 
-          bulkCreateLeadsMutation.mutate(validatedLeads);
+          setParsedLeads(parsedLeads);
+          setShowReviewScreen(true);
         } catch (error: any) {
           toast({
-            title: 'CSV Validation Error',
+            title: 'CSV Parsing Error',
             description: error.message,
             variant: 'destructive',
           });
@@ -274,6 +218,25 @@ export function LeadIngestion() {
       }
     }
   };
+
+  if (showReviewScreen && parsedLeads.length > 0) {
+    return (
+      <div className="space-y-6">
+        <CSVLeadReview
+          leads={parsedLeads}
+          onComplete={() => {
+            setShowReviewScreen(false);
+            setParsedLeads([]);
+            setIsOpen(false);
+          }}
+          onCancel={() => {
+            setShowReviewScreen(false);
+            setParsedLeads([]);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
