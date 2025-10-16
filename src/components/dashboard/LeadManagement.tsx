@@ -15,11 +15,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Clock, Settings, Phone, User, Timer, CalendarIcon, TestTube, Trash2, Search, Check, ChevronsUpDown } from 'lucide-react';
+import { Clock, Settings, Phone, User, CalendarIcon, Trash2, Search, Check, ChevronsUpDown, Timer } from 'lucide-react';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { format, setHours, setMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { TimeOverrideTool } from './TimeOverrideTool';
+
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 const STATUS_LABELS = {
@@ -142,7 +142,6 @@ export function LeadManagement() {
   const location = useLocation();
   const { isTeleSales, isAdmin, isSalesManager } = useUserRole();
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [l5Hours, setL5Hours] = useState<string>('');
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [pulledLead, setPulledLead] = useState<any>(null);
   const [callOutcome, setCallOutcome] = useState<string>('');
@@ -153,7 +152,6 @@ export function LeadManagement() {
   const [callbackTime, setCallbackTime] = useState<string>('10:00');
   const [assignTo, setAssignTo] = useState<'self' | 'team'>('self');
   const [callBackIn, setCallBackIn] = useState<string>('');
-  const [showTimeOverride, setShowTimeOverride] = useState(false);
   const [showNoLeadsDialog, setShowNoLeadsDialog] = useState(false);
   const [showWipeConfirmDialog, setShowWipeConfirmDialog] = useState(false);
   
@@ -214,16 +212,6 @@ export function LeadManagement() {
   // Determine if this is the Lead Management page (only assigned leads) or Leads page (all leads)
   const isLeadManagementPage = location.pathname === '/dashboard/lead-management';
 
-  // Listen for time override changes and invalidate queries
-  useEffect(() => {
-    const handleTimeOverrideChange = () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      queryClient.invalidateQueries({ queryKey: ['follow-up-leads'] });
-    };
-
-    window.addEventListener('timeOverrideChanged', handleTimeOverrideChange);
-    return () => window.removeEventListener('timeOverrideChanged', handleTimeOverrideChange);
-  }, [queryClient]);
 
   // Auto-set Call Outcome to "Appointment Booked" for L6
   useEffect(() => {
@@ -232,18 +220,6 @@ export function LeadManagement() {
     }
   }, [statusUpdate]);
 
-  // Fetch cooldown settings
-  const { data: settings } = useQuery({
-    queryKey: ['lead-settings'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('lead_settings')
-        .select('*');
-      
-      if (error) throw error;
-      return data;
-    },
-  });
 
   // Fetch branches for L6 appointment booking
   const { data: branches } = useQuery({
@@ -564,25 +540,9 @@ export function LeadManagement() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ leadId, status }: { leadId: string; status: string }) => {
-      const updates: any = { status: status as any };
-      
-      // Auto-apply cooldown for L5
-      if (status === 'L5-Thinking') {
-        const setting = settings?.find(s => s.setting_key === 'l5_cooldown_hours');
-        
-        if (setting && setting.setting_value > 0) {
-          const cooldownUntil = getEffectiveTime();
-          cooldownUntil.setHours(cooldownUntil.getHours() + Number(setting.setting_value));
-          updates.cooldown_until = cooldownUntil.toISOString();
-        }
-      } else {
-        // Clear cooldown for other statuses
-        updates.cooldown_until = null;
-      }
-
       const { error } = await supabase
         .from('leads')
-        .update(updates)
+        .update({ status: status as any })
         .eq('id', leadId);
 
       if (error) throw error;
@@ -631,54 +591,6 @@ export function LeadManagement() {
           : (callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`),
       };
 
-      // Handle L1 custom cooldown logic
-      if (statusUpdate === 'L1-Call back') {
-        const currentPeriod = getCurrentTimePeriod();
-        const currentContactCount = pulledLead.l1_contact_count || 0;
-        
-        // Check if this will be the 6th contact - if so, move to hibernation
-        if (currentContactCount >= 5) {
-          // Set to hibernation after 6th contact
-          updates.status = 'hibernation';
-          updates.l1_contact_count = currentContactCount + 1;
-          updates.l1_last_contact_time = getEffectiveTime().toISOString();
-          updates.cooldown_until = null;
-          updates.assigned_to = null;
-          updates.assigned_at = null;
-        } else {
-          // Check period limits (max 2 per period)
-          const periodCounts = {
-            1: pulledLead.l1_period_1_count || 0,
-            2: pulledLead.l1_period_2_count || 0,
-            3: pulledLead.l1_period_3_count || 0,
-          };
-          
-          if (currentPeriod > 0 && periodCounts[currentPeriod as 1 | 2 | 3] >= 2) {
-            throw new Error(`Period ${currentPeriod} has already reached maximum 2 contacts`);
-          }
-          
-          // Update L1 tracking fields
-          updates.l1_contact_count = currentContactCount + 1;
-          updates.l1_last_contact_period = currentPeriod;
-          updates.l1_last_contact_time = getEffectiveTime().toISOString();
-          
-          // Increment period-specific count
-          if (currentPeriod === 1) {
-            updates.l1_period_1_count = (pulledLead.l1_period_1_count || 0) + 1;
-          } else if (currentPeriod === 2) {
-            updates.l1_period_2_count = (pulledLead.l1_period_2_count || 0) + 1;
-          } else {
-            // Assign calls outside time periods to Period 3
-            updates.l1_period_3_count = (pulledLead.l1_period_3_count || 0) + 1;
-          }
-          
-          // Calculate next available time
-          const cooldownUntil = calculateL1Cooldown(currentPeriod, pulledLead.l1_last_contact_period);
-          if (cooldownUntil) {
-            updates.cooldown_until = cooldownUntil.toISOString();
-          }
-        }
-      }
 
       // Handle L2 (Call Rescheduled) assignment logic
       if (statusUpdate === 'L2-Call reschedule') {
@@ -699,24 +611,10 @@ export function LeadManagement() {
           updates.notes = `${updates.notes} | Callback: ${format(callbackDateTime, 'PPp')}`;
         }
       } else {
-        // For all other statuses (except hibernation handled above), unassign the lead
+        // For all other statuses, unassign the lead
         // The lead will disappear from "My assigned leads" but history tracks who processed it
         updates.assigned_to = null;
         updates.assigned_at = null;
-      }
-      
-      // Auto-apply cooldown for L5
-      if (statusUpdate === 'L5-Thinking') {
-        const setting = settings?.find(s => s.setting_key === 'l5_cooldown_hours');
-        
-        if (setting && setting.setting_value > 0) {
-          const cooldownUntil = getEffectiveTime();
-          cooldownUntil.setHours(cooldownUntil.getHours() + Number(setting.setting_value));
-          updates.cooldown_until = cooldownUntil.toISOString();
-        }
-      } else if (statusUpdate !== 'L1-Call back') {
-        // Clear cooldown for other statuses (except L1 which has custom cooldown)
-        updates.cooldown_until = null;
       }
 
       const { error } = await supabase
@@ -797,37 +695,6 @@ export function LeadManagement() {
     },
   });
 
-  const updateSettingMutation = useMutation({
-    mutationFn: async ({ settingKey, value }: { settingKey: string; value: number }) => {
-      if (value <= 0) {
-        throw new Error('Hours must be greater than 0');
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      const { error } = await supabase
-        .from('lead_settings')
-        .update({ 
-          setting_value: value,
-          updated_by: user?.id,
-          updated_at: getEffectiveTime().toISOString()
-        })
-        .eq('setting_key', settingKey);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lead-settings'] });
-      toast({ title: 'Settings updated', description: 'Cooldown settings have been updated' });
-    },
-    onError: (error: any) => {
-      toast({ 
-        title: 'Failed to update settings', 
-        description: error.message, 
-        variant: 'destructive' 
-      });
-    },
-  });
 
   const wipeAllDataMutation = useMutation({
     mutationFn: async () => {
@@ -879,37 +746,6 @@ export function LeadManagement() {
     },
   });
 
-  const handleUpdateL5Cooldown = () => {
-    const hours = parseFloat(l5Hours);
-    if (hours > 0) {
-      updateSettingMutation.mutate({ settingKey: 'l5_cooldown_hours', value: hours });
-      setL5Hours('');
-    } else {
-      toast({
-        title: 'Invalid input',
-        description: 'Hours must be greater than 0',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  const getRemainingCooldown = (cooldownUntil: string | null) => {
-    if (!cooldownUntil) return null;
-    
-    const now = getEffectiveTime();
-    const cooldown = new Date(cooldownUntil);
-    
-    if (now >= cooldown) return null;
-    
-    const diffMs = cooldown.getTime() - now.getTime();
-    const hours = Math.floor(diffMs / (1000 * 60 * 60));
-    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
 
   // Auto-set call outcome when L2 is selected, and reset when status changes
   useEffect(() => {
@@ -926,17 +762,6 @@ export function LeadManagement() {
   }, [statusUpdate, selfManagedL2Count]);
 
   // Timer for lead call tracking
-  useEffect(() => {
-    if (!isLeadModalOpen) return;
-
-    const interval = setInterval(() => {
-      setElapsedTime(prev => prev + 1);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isLeadModalOpen]);
-
-  // Listen for time override changes and refresh data
   useEffect(() => {
     const handleTimeOverrideChange = () => {
       // Invalidate queries to refresh lead data with new effective time
@@ -1109,9 +934,6 @@ export function LeadManagement() {
     return acc;
   }, {} as Record<string, number>);
 
-  const l1Setting = settings?.find(s => s.setting_key === 'l1_cooldown_hours');
-  const l5Setting = settings?.find(s => s.setting_key === 'l5_cooldown_hours');
-
   return (
     <div className="space-y-6">
       {/* No Leads Available Dialog */}
@@ -1130,8 +952,6 @@ export function LeadManagement() {
                 <p className="font-semibold">Possible reasons:</p>
                 <ul className="list-disc list-inside space-y-1 text-muted-foreground">
                   <li>All L0 (Fresh) leads have been assigned</li>
-                  <li>L1 (Call Back) leads are in cooldown period</li>
-                  <li>L5 (Thinking) leads are in cooldown period</li>
                   <li>No new leads have been ingested</li>
                 </ul>
               </div>
@@ -1729,7 +1549,7 @@ export function LeadManagement() {
               <div className="col-span-1 space-y-4">
                 <div className="sticky top-0">
                   <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                    <Timer className="h-4 w-4" />
+                    <Clock className="h-4 w-4" />
                     Quick History
                   </h3>
                   <div className="space-y-3">
@@ -1831,69 +1651,17 @@ export function LeadManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Time Override Tool - Only for Admin */}
+      {/* Admin Tools - Only for Admin on Leads page */}
       {isAdmin && !isLeadManagementPage && (
         <div className="space-y-4">
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowTimeOverride(!showTimeOverride)}
-              className="flex-1"
-            >
-              <TestTube className="h-4 w-4 mr-2" />
-              {showTimeOverride ? 'Hide' : 'Show'} Time Override Tool
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => setShowWipeConfirmDialog(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Wipe All Data
-            </Button>
-          </div>
-          {showTimeOverride && <TimeOverrideTool />}
+          <Button
+            variant="destructive"
+            onClick={() => setShowWipeConfirmDialog(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Wipe All Data
+          </Button>
         </div>
-      )}
-
-      {/* Cooldown Settings - Only for Admin/Sales Manager on Leads page */}
-      {(isAdmin || isSalesManager) && !isLeadManagementPage && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Lead Cooldown Settings
-            </CardTitle>
-            <CardDescription>
-              Configure automatic cooldown period for L5 lead status
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-w-md">
-                <Label htmlFor="l5-cooldown">L5 - Thinking Cooldown (hours)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="l5-cooldown"
-                    type="number"
-                    min="1"
-                    value={l5Hours}
-                    onChange={(e) => setL5Hours(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleUpdateL5Cooldown();
-                    }}
-                  />
-                  <Button 
-                    onClick={handleUpdateL5Cooldown}
-                    disabled={updateSettingMutation.isPending}
-                  >
-                    Update
-                  </Button>
-                </div>
-              <p className="text-sm text-muted-foreground">
-                Current: {l5Setting?.setting_value || 0} hours
-              </p>
-            </div>
-          </CardContent>
-      </Card>
       )}
 
       {/* My Assigned Leads */}
@@ -2005,7 +1773,6 @@ export function LeadManagement() {
               <TableHead>Phone</TableHead>
               <TableHead>Service/Product</TableHead>
               {!isLeadManagementPage && <TableHead>Status</TableHead>}
-              {!isLeadManagementPage && <TableHead>Cooldown</TableHead>}
               {!isLeadManagementPage && <TableHead>Assigned To</TableHead>}
               {isLeadManagementPage && <TableHead>Time Remaining</TableHead>}
               {isLeadManagementPage && <TableHead>Actions</TableHead>}
@@ -2068,33 +1835,6 @@ export function LeadManagement() {
                       </Select>
                     ) : (
                       <Badge>{STATUS_LABELS[lead.status as keyof typeof STATUS_LABELS]}</Badge>
-                    )}
-                  </TableCell>
-                )}
-                {!isLeadManagementPage && (
-                  <TableCell>
-                    {lead.status === 'L1-Call back' ? (
-                      <div className="flex flex-col gap-1">
-                        <Badge variant="secondary" className="w-fit">
-                          {lead.l1_contact_count || 0}/6 calls
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          P1: {lead.l1_period_1_count || 0}/2 | P2: {lead.l1_period_2_count || 0}/2 | P3: {lead.l1_period_3_count || 0}/2
-                        </span>
-                        {getRemainingCooldown(lead.cooldown_until) && (
-                          <Badge variant="outline" className="w-fit gap-1">
-                            <Timer className="h-3 w-3" />
-                            {getRemainingCooldown(lead.cooldown_until)}
-                          </Badge>
-                        )}
-                      </div>
-                    ) : getRemainingCooldown(lead.cooldown_until) ? (
-                      <Badge variant="secondary" className="gap-1">
-                        <Clock className="h-3 w-3" />
-                        {getRemainingCooldown(lead.cooldown_until)}
-                      </Badge>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">-</span>
                     )}
                   </TableCell>
                 )}

@@ -9,7 +9,7 @@ import { LeadIngestion } from '@/components/dashboard/LeadIngestion';
 import { AppointmentManagement } from '@/components/dashboard/AppointmentManagement';
 import { Customers } from '@/components/dashboard/Customers';
 import { BranchManagement } from '@/components/dashboard/BranchManagement';
-import { TimeOverrideTool } from '@/components/dashboard/TimeOverrideTool';
+
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
@@ -48,7 +48,7 @@ export default function Dashboard() {
         <Route path="/customers" element={<Customers />} />
         <Route path="/branches" element={<BranchManagement />} />
         <Route path="/users" element={<UserManagement />} />
-        <Route path="/time-override" element={<TimeOverrideTool />} />
+        
       </Routes>
     </DashboardLayout>
   );
