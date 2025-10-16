@@ -1033,7 +1033,7 @@ export function LeadManagement() {
     return CALL_OUTCOMES;
   };
 
-  const AVAILABLE_STATUSES = Object.entries(STATUS_LABELS).filter(([key]) => key !== 'L0-Fresh Lead');
+  const AVAILABLE_STATUSES = Object.entries(STATUS_LABELS).filter(([key]) => key !== 'L0-Fresh Lead' && key !== 'hibernation');
 
   if (isLoading) {
     return <div className="text-center py-8">Loading leads...</div>;
