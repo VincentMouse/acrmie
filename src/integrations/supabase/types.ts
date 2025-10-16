@@ -267,7 +267,7 @@ export type Database = {
           id?: string
           lead_id: string
           new_assigned_to?: string | null
-          new_status: Database["public"]["Enums"]["lead_status"]
+          new_status?: Database["public"]["Enums"]["lead_status"]
           notes?: string | null
           old_assigned_to?: string | null
           old_status?: Database["public"]["Enums"]["lead_status"] | null
@@ -617,13 +617,18 @@ export type Database = {
         | "customer_service"
         | "view_only"
       lead_status:
-        | "status_0"
-        | "status_1"
-        | "status_2"
-        | "status_3"
-        | "status_4"
-        | "status_5"
-        | "status_6"
+        | "L0-Fresh Lead"
+        | "L1-Call back"
+        | "L2-Call reschedule"
+        | "L3-Cancelled"
+        | "L4-Blacklisted"
+        | "L5-Thinking"
+        | "L6-Appointment set"
+        | "booked"
+        | "checked_in"
+        | "completed"
+        | "no_show"
+        | "cancelled"
         | "hibernation"
     }
     CompositeTypes: {
@@ -760,13 +765,18 @@ export const Constants = {
         "view_only",
       ],
       lead_status: [
-        "status_0",
-        "status_1",
-        "status_2",
-        "status_3",
-        "status_4",
-        "status_5",
-        "status_6",
+        "L0-Fresh Lead",
+        "L1-Call back",
+        "L2-Call reschedule",
+        "L3-Cancelled",
+        "L4-Blacklisted",
+        "L5-Thinking",
+        "L6-Appointment set",
+        "booked",
+        "checked_in",
+        "completed",
+        "no_show",
+        "cancelled",
         "hibernation",
       ],
     },
