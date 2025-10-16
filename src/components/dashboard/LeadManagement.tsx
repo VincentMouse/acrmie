@@ -293,6 +293,33 @@ export function LeadManagement() {
 
       const { data, error } = await query;
       if (error) throw error;
+
+      // Fetch last processor for each lead from history
+      if (data && !isLeadManagementPage) {
+        const leadIds = data.map(lead => lead.id);
+        
+        // Get the most recent history entry for each lead
+        const { data: historyData } = await supabase
+          .from('lead_history')
+          .select('lead_id, changed_by, profiles!lead_history_changed_by_fkey(full_name)')
+          .in('lead_id', leadIds)
+          .order('created_at', { ascending: false });
+
+        // Map last processor to each lead
+        const lastProcessorMap = new Map();
+        historyData?.forEach(history => {
+          if (!lastProcessorMap.has(history.lead_id)) {
+            lastProcessorMap.set(history.lead_id, history.profiles?.full_name);
+          }
+        });
+
+        // Add last_processor to each lead
+        return data.map(lead => ({
+          ...lead,
+          last_processor: lastProcessorMap.get(lead.id) || null
+        }));
+      }
+
       return data;
     },
   });
@@ -636,8 +663,12 @@ export function LeadManagement() {
           const callbackDateTime = setMinutes(setHours(callbackDate, parseInt(hours)), parseInt(minutes));
           updates.notes = `${updates.notes} | Callback: ${format(callbackDateTime, 'PPp')}`;
         }
+      } else {
+        // For all other statuses (except hibernation handled above), unassign the lead
+        // The lead will disappear from "My assigned leads" but history tracks who processed it
+        updates.assigned_to = null;
+        updates.assigned_at = null;
       }
-      // For all other statuses, keep the lead assigned to the current user (unless hibernation which already unassigns above)
       
       // Auto-apply cooldown for L5
       if (statusUpdate === 'L5-Thinking') {
@@ -2032,7 +2063,11 @@ export function LeadManagement() {
                     )}
                   </TableCell>
                 )}
-                {!isLeadManagementPage && <TableCell>{lead.assigned?.full_name || 'Unassigned'}</TableCell>}
+                {!isLeadManagementPage && (
+                  <TableCell>
+                    {lead.assigned?.full_name || (lead as any).last_processor || 'Unassigned'}
+                  </TableCell>
+                )}
                 {isLeadManagementPage && (
                   <TableCell>
                     {lead.assigned_at && (() => {
