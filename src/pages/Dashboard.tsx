@@ -9,6 +9,7 @@ import { LeadIngestion } from '@/components/dashboard/LeadIngestion';
 import { AppointmentManagement } from '@/components/dashboard/AppointmentManagement';
 import { Customers } from '@/components/dashboard/Customers';
 import { BranchManagement } from '@/components/dashboard/BranchManagement';
+import { Reports } from '@/components/dashboard/Reports';
 
 
 export default function Dashboard() {
@@ -47,6 +48,7 @@ export default function Dashboard() {
         <Route path="/appointments" element={<AppointmentManagement />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/branches" element={<BranchManagement />} />
+        <Route path="/reports" element={<Reports />} />
         <Route path="/users" element={<UserManagement />} />
         
       </Routes>
