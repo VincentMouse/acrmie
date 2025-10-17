@@ -111,25 +111,13 @@ export function UserManagement() {
 
   const updateRolesMutation = useMutation({
     mutationFn: async ({ userId, roles }: { userId: string; roles: string[] }) => {
-      // First, delete all existing roles for the user
-      const { error: deleteError } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', userId);
+      // Use the secure function to update roles
+      const { error } = await supabase.rpc('update_user_roles', {
+        _user_id: userId,
+        _roles: roles as ('admin' | 'sales_manager' | 'tele_sales' | 'customer_service' | 'view_only')[]
+      });
 
-      if (deleteError) throw deleteError;
-
-      // Then insert the new roles
-      if (roles.length > 0) {
-        const { error: insertError } = await supabase
-          .from('user_roles')
-          .insert(roles.map(role => ({ 
-            user_id: userId, 
-            role: role as 'admin' | 'sales_manager' | 'tele_sales' | 'customer_service' | 'view_only'
-          })));
-
-        if (insertError) throw insertError;
-      }
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
