@@ -110,21 +110,18 @@ export function Customers() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('appointments')
-        .select(`
-          *,
-          leads!inner(phone)
-        `)
+        .select('*')
         .order('appointment_date', { ascending: false });
 
       if (error) throw error;
 
-      // Group appointments by phone number from lead
+      // Group appointments by lead_id
       const grouped = (data as any[]).reduce((acc, appointment) => {
-        const phone = appointment.leads.phone;
-        if (!acc[phone]) {
-          acc[phone] = [];
+        const leadId = appointment.lead_id;
+        if (!acc[leadId]) {
+          acc[leadId] = [];
         }
-        acc[phone].push({
+        acc[leadId].push({
           id: appointment.id,
           lead_id: appointment.lead_id,
           appointment_date: appointment.appointment_date,
@@ -263,7 +260,6 @@ export function Customers() {
       <div className="space-y-2">
         {customers?.map((customer) => {
           const customerLeads = leadsMap?.[customer.phone] || [];
-          const customerAppointments = appointmentsMap?.[customer.phone] || [];
           const isExpanded = expandedCustomer === customer.id;
 
           return (
@@ -370,84 +366,91 @@ export function Customers() {
                     <div>
                       <h4 className="font-semibold mb-3 text-sm">Leads</h4>
                       {customerLeads.length > 0 ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Name</TableHead>
-                              <TableHead>Service/Product</TableHead>
-                              <TableHead>Campaign</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Date</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {customerLeads.map((lead) => (
-                              <TableRow key={lead.id}>
-                                <TableCell>
-                                  {lead.first_name} {lead.last_name}
-                                </TableCell>
-                                <TableCell>{lead.service_product}</TableCell>
-                                <TableCell>{lead.campaign_name || '-'}</TableCell>
-                                <TableCell>
-                                  <Badge className={getStatusColor(lead.status)}>
-                                    {lead.status.replace('status_', 'Status ')}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  {new Date(lead.created_at).toLocaleDateString()}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
+                        <div className="space-y-4">
+                          {customerLeads.map((lead) => {
+                            const leadAppointments = appointmentsMap?.[lead.id] || [];
+                            return (
+                              <div key={lead.id} className="border rounded-lg overflow-hidden">
+                                <div className="bg-muted/30 p-3">
+                                  <div className="grid grid-cols-5 gap-4 text-sm">
+                                    <div>
+                                      <span className="font-medium">Name:</span>
+                                      <p className="text-muted-foreground">{lead.first_name} {lead.last_name}</p>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Service/Product:</span>
+                                      <p className="text-muted-foreground">{lead.service_product}</p>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Campaign:</span>
+                                      <p className="text-muted-foreground">{lead.campaign_name || '-'}</p>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Status:</span>
+                                      <div className="mt-1">
+                                        <Badge className={getStatusColor(lead.status)}>
+                                          {lead.status}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <span className="font-medium">Date:</span>
+                                      <p className="text-muted-foreground">{new Date(lead.created_at).toLocaleDateString()}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {leadAppointments.length > 0 && (
+                                  <div className="p-3 bg-background border-t">
+                                    <h5 className="text-xs font-semibold mb-2 text-muted-foreground uppercase">Appointments for this lead</h5>
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead className="text-xs">Appointment Date</TableHead>
+                                          <TableHead className="text-xs">Service/Product</TableHead>
+                                          <TableHead className="text-xs">Confirmation</TableHead>
+                                          <TableHead className="text-xs">Check-in</TableHead>
+                                          <TableHead className="text-xs">Revenue</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {leadAppointments.map((appointment) => (
+                                          <TableRow key={appointment.id}>
+                                            <TableCell className="text-xs">
+                                              {new Date(appointment.appointment_date).toLocaleString()}
+                                            </TableCell>
+                                            <TableCell className="text-xs">{appointment.service_product || '-'}</TableCell>
+                                            <TableCell>
+                                              <Badge variant={appointment.confirmation_status === 'confirmed' ? 'default' : 'secondary'} className="text-xs">
+                                                {appointment.confirmation_status}
+                                              </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                              {appointment.check_in_status ? (
+                                                <Badge className="text-xs">{appointment.check_in_status}</Badge>
+                                              ) : (
+                                                <span className="text-xs text-muted-foreground">-</span>
+                                              )}
+                                            </TableCell>
+                                            <TableCell className="text-xs">
+                                              {appointment.revenue ? `$${appointment.revenue}` : '-'}
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       ) : (
                         <div className="p-4 text-center text-muted-foreground text-sm">
                           No leads found for this customer
                         </div>
                       )}
                     </div>
-
-                    {customerAppointments.length > 0 && (
-                      <div className="pt-4 border-t">
-                        <h4 className="font-semibold mb-3 text-sm">Appointments</h4>
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Appointment Date</TableHead>
-                              <TableHead>Service/Product</TableHead>
-                              <TableHead>Confirmation Status</TableHead>
-                              <TableHead>Check-in Status</TableHead>
-                              <TableHead>Revenue</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {customerAppointments.map((appointment) => (
-                              <TableRow key={appointment.id}>
-                                <TableCell>
-                                  {new Date(appointment.appointment_date).toLocaleString()}
-                                </TableCell>
-                                <TableCell>{appointment.service_product || '-'}</TableCell>
-                                <TableCell>
-                                  <Badge variant={appointment.confirmation_status === 'confirmed' ? 'default' : 'secondary'}>
-                                    {appointment.confirmation_status}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell>
-                                  {appointment.check_in_status ? (
-                                    <Badge>{appointment.check_in_status}</Badge>
-                                  ) : (
-                                    '-'
-                                  )}
-                                </TableCell>
-                                <TableCell>
-                                  {appointment.revenue ? `$${appointment.revenue}` : '-'}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
                   </div>
                 </CollapsibleContent>
               </Card>
