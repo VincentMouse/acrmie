@@ -71,6 +71,22 @@ export function TelesalesReport() {
             ? await supabase.from('leads').select('status').in('id', leadIds)
             : { data: [] };
 
+          // Leads handled - count of leads where this user made any status change
+          let handledQuery = supabase
+            .from('lead_history')
+            .select('lead_id', { count: 'exact', head: false })
+            .eq('changed_by', userId);
+          
+          if (dateRange?.from) {
+            handledQuery = handledQuery.gte('created_at', dateRange.from.toISOString());
+          }
+          if (dateRange?.to) {
+            handledQuery = handledQuery.lte('created_at', dateRange.to.toISOString());
+          }
+          
+          const { data: handledData } = await handledQuery;
+          const leadsHandled = new Set(handledData?.map(h => h.lead_id) || []).size;
+
           // L6 appointments - count from lead_history where status changed to L6 by this user
           let l6Query = supabase
             .from('lead_history')
@@ -115,6 +131,7 @@ export function TelesalesReport() {
             name: (user.profiles as any)?.full_name || 'Unknown',
             email: (user.profiles as any)?.email || '',
             totalAssigned: totalAssigned || 0,
+            leadsHandled,
             l6Count: l6Count || 0,
             confirmedCount: confirmedCount || 0,
             conversionRate: totalAssigned ? ((l6Count || 0) / totalAssigned * 100).toFixed(1) : '0',
@@ -237,6 +254,7 @@ export function TelesalesReport() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Assigned</TableHead>
+                <TableHead>Leads Handled</TableHead>
                 <TableHead>L6 Booked</TableHead>
                 <TableHead>Conversion Rate</TableHead>
                 <TableHead>CS Confirmed</TableHead>
@@ -248,6 +266,7 @@ export function TelesalesReport() {
                 <TableRow key={stat.userId}>
                   <TableCell className="font-medium">{stat.name}</TableCell>
                   <TableCell>{stat.totalAssigned}</TableCell>
+                  <TableCell>{stat.leadsHandled}</TableCell>
                   <TableCell>{stat.l6Count}</TableCell>
                   <TableCell>{stat.conversionRate}%</TableCell>
                   <TableCell>{stat.confirmedCount}</TableCell>
