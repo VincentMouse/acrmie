@@ -31,6 +31,17 @@ type Lead = {
   campaign_name: string | null;
 };
 
+type Appointment = {
+  id: string;
+  lead_id: string;
+  appointment_date: string;
+  confirmation_status: string;
+  check_in_status: string | null;
+  service_product: string | null;
+  revenue: number | null;
+  notes: string | null;
+};
+
 export function Customers() {
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
@@ -89,6 +100,42 @@ export function Customers() {
         acc[phone].push(lead);
         return acc;
       }, {} as Record<string, Lead[]>);
+
+      return grouped;
+    },
+  });
+
+  const { data: appointmentsMap } = useQuery({
+    queryKey: ['customer-appointments'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+          *,
+          leads!inner(phone)
+        `)
+        .order('appointment_date', { ascending: false });
+
+      if (error) throw error;
+
+      // Group appointments by phone number from lead
+      const grouped = (data as any[]).reduce((acc, appointment) => {
+        const phone = appointment.leads.phone;
+        if (!acc[phone]) {
+          acc[phone] = [];
+        }
+        acc[phone].push({
+          id: appointment.id,
+          lead_id: appointment.lead_id,
+          appointment_date: appointment.appointment_date,
+          confirmation_status: appointment.confirmation_status,
+          check_in_status: appointment.check_in_status,
+          service_product: appointment.service_product,
+          revenue: appointment.revenue,
+          notes: appointment.notes,
+        });
+        return acc;
+      }, {} as Record<string, Appointment[]>);
 
       return grouped;
     },
@@ -216,6 +263,7 @@ export function Customers() {
       <div className="space-y-2">
         {customers?.map((customer) => {
           const customerLeads = leadsMap?.[customer.phone] || [];
+          const customerAppointments = appointmentsMap?.[customer.phone] || [];
           const isExpanded = expandedCustomer === customer.id;
 
           return (
@@ -319,40 +367,85 @@ export function Customers() {
                       </div>
                     </div>
                     
-                    {customerLeads.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Service/Product</TableHead>
-                            <TableHead>Campaign</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Date</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {customerLeads.map((lead) => (
-                            <TableRow key={lead.id}>
-                              <TableCell>
-                                {lead.first_name} {lead.last_name}
-                              </TableCell>
-                              <TableCell>{lead.service_product}</TableCell>
-                              <TableCell>{lead.campaign_name || '-'}</TableCell>
-                              <TableCell>
-                                <Badge className={getStatusColor(lead.status)}>
-                                  {lead.status.replace('status_', 'Status ')}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                {new Date(lead.created_at).toLocaleDateString()}
-                              </TableCell>
+                    <div>
+                      <h4 className="font-semibold mb-3 text-sm">Leads</h4>
+                      {customerLeads.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Service/Product</TableHead>
+                              <TableHead>Campaign</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Date</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    ) : (
-                      <div className="p-4 text-center text-muted-foreground">
-                        No leads found for this customer
+                          </TableHeader>
+                          <TableBody>
+                            {customerLeads.map((lead) => (
+                              <TableRow key={lead.id}>
+                                <TableCell>
+                                  {lead.first_name} {lead.last_name}
+                                </TableCell>
+                                <TableCell>{lead.service_product}</TableCell>
+                                <TableCell>{lead.campaign_name || '-'}</TableCell>
+                                <TableCell>
+                                  <Badge className={getStatusColor(lead.status)}>
+                                    {lead.status.replace('status_', 'Status ')}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  {new Date(lead.created_at).toLocaleDateString()}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <div className="p-4 text-center text-muted-foreground text-sm">
+                          No leads found for this customer
+                        </div>
+                      )}
+                    </div>
+
+                    {customerAppointments.length > 0 && (
+                      <div className="pt-4 border-t">
+                        <h4 className="font-semibold mb-3 text-sm">Appointments</h4>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Appointment Date</TableHead>
+                              <TableHead>Service/Product</TableHead>
+                              <TableHead>Confirmation Status</TableHead>
+                              <TableHead>Check-in Status</TableHead>
+                              <TableHead>Revenue</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {customerAppointments.map((appointment) => (
+                              <TableRow key={appointment.id}>
+                                <TableCell>
+                                  {new Date(appointment.appointment_date).toLocaleString()}
+                                </TableCell>
+                                <TableCell>{appointment.service_product || '-'}</TableCell>
+                                <TableCell>
+                                  <Badge variant={appointment.confirmation_status === 'confirmed' ? 'default' : 'secondary'}>
+                                    {appointment.confirmation_status}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  {appointment.check_in_status ? (
+                                    <Badge>{appointment.check_in_status}</Badge>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {appointment.revenue ? `$${appointment.revenue}` : '-'}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
                       </div>
                     )}
                   </div>
