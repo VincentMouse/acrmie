@@ -1,12 +1,24 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Award, TrendingUp, Users, Target } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Award, TrendingUp, Users, Target, CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { DateRange } from 'react-day-picker';
+import { cn } from '@/lib/utils';
 
 export function TelesalesReport() {
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: new Date(new Date().setDate(new Date().getDate() - 7)),
+    to: new Date(),
+  });
+
   const { data: telesalesStats } = useQuery({
-    queryKey: ['telesales-stats'],
+    queryKey: ['telesales-stats', dateRange],
     queryFn: async () => {
       // Get all telesales users
       const { data: telesalesUsers } = await supabase
@@ -22,30 +34,66 @@ export function TelesalesReport() {
           const userId = user.user_id;
           
           // Total assigned leads
-          const { count: totalAssigned } = await supabase
+          let assignedQuery = supabase
             .from('leads')
             .select('*', { count: 'exact', head: true })
             .eq('assigned_to', userId);
+          
+          if (dateRange?.from) {
+            assignedQuery = assignedQuery.gte('assigned_at', dateRange.from.toISOString());
+          }
+          if (dateRange?.to) {
+            assignedQuery = assignedQuery.lte('assigned_at', dateRange.to.toISOString());
+          }
+          
+          const { count: totalAssigned } = await assignedQuery;
 
           // Leads by status
-          const { data: statusBreakdown } = await supabase
+          let statusQuery = supabase
             .from('leads')
             .select('status')
             .eq('assigned_to', userId);
+          
+          if (dateRange?.from) {
+            statusQuery = statusQuery.gte('assigned_at', dateRange.from.toISOString());
+          }
+          if (dateRange?.to) {
+            statusQuery = statusQuery.lte('assigned_at', dateRange.to.toISOString());
+          }
+          
+          const { data: statusBreakdown } = await statusQuery;
 
           // L6 appointments
-          const { count: l6Count } = await supabase
+          let l6Query = supabase
             .from('leads')
             .select('*', { count: 'exact', head: true })
             .eq('assigned_to', userId)
             .eq('status', 'L6-Appointment set');
+          
+          if (dateRange?.from) {
+            l6Query = l6Query.gte('assigned_at', dateRange.from.toISOString());
+          }
+          if (dateRange?.to) {
+            l6Query = l6Query.lte('assigned_at', dateRange.to.toISOString());
+          }
+          
+          const { count: l6Count } = await l6Query;
 
           // Confirmed appointments (from appointments table)
-          const { count: confirmedCount } = await supabase
+          let confirmedQuery = supabase
             .from('appointments')
             .select('*', { count: 'exact', head: true })
             .eq('assigned_to', userId)
             .eq('confirmation_status', 'confirmed');
+          
+          if (dateRange?.from) {
+            confirmedQuery = confirmedQuery.gte('created_at', dateRange.from.toISOString());
+          }
+          if (dateRange?.to) {
+            confirmedQuery = confirmedQuery.lte('created_at', dateRange.to.toISOString());
+          }
+          
+          const { count: confirmedCount } = await confirmedQuery;
 
           const statusCounts = statusBreakdown?.reduce((acc, lead) => {
             acc[lead.status] = (acc[lead.status] || 0) + 1;
@@ -88,6 +136,39 @@ export function TelesalesReport() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Telesales Report</h2>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal")}>
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {dateRange?.from ? (
+                dateRange.to ? (
+                  <>
+                    {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
+                  </>
+                ) : (
+                  format(dateRange.from, "LLL dd, y")
+                )
+              ) : (
+                <span>Pick a date range</span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <Calendar
+              initialFocus
+              mode="range"
+              defaultMonth={dateRange?.from}
+              selected={dateRange}
+              onSelect={setDateRange}
+              numberOfMonths={2}
+              className="pointer-events-auto"
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

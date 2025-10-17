@@ -1,17 +1,38 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Copy, TrendingUp, BarChart } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Users, Copy, TrendingUp, BarChart, CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { DateRange } from 'react-day-picker';
+import { cn } from '@/lib/utils';
 
 export function MarketingReport() {
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: new Date(new Date().setDate(new Date().getDate() - 7)),
+    to: new Date(),
+  });
+
   const { data: marketerStats } = useQuery({
-    queryKey: ['marketer-stats'],
+    queryKey: ['marketer-stats', dateRange],
     queryFn: async () => {
       // Get all unique marketers
-      const { data: allLeads } = await supabase
+      let leadsQuery = supabase
         .from('leads')
-        .select('marketer_name, status, is_duplicate');
+        .select('marketer_name, status, is_duplicate, created_at');
+      
+      if (dateRange?.from) {
+        leadsQuery = leadsQuery.gte('created_at', dateRange.from.toISOString());
+      }
+      if (dateRange?.to) {
+        leadsQuery = leadsQuery.lte('created_at', dateRange.to.toISOString());
+      }
+      
+      const { data: allLeads } = await leadsQuery;
 
       if (!allLeads) return [];
 
@@ -51,6 +72,39 @@ export function MarketingReport() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Marketing Report</h2>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className={cn("w-[280px] justify-start text-left font-normal")}>
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {dateRange?.from ? (
+                dateRange.to ? (
+                  <>
+                    {format(dateRange.from, "LLL dd, y")} - {format(dateRange.to, "LLL dd, y")}
+                  </>
+                ) : (
+                  format(dateRange.from, "LLL dd, y")
+                )
+              ) : (
+                <span>Pick a date range</span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <Calendar
+              initialFocus
+              mode="range"
+              defaultMonth={dateRange?.from}
+              selected={dateRange}
+              onSelect={setDateRange}
+              numberOfMonths={2}
+              className="pointer-events-auto"
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
