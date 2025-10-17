@@ -33,48 +33,56 @@ export function TelesalesReport() {
         telesalesUsers.map(async (user) => {
           const userId = user.user_id;
           
-          // Total assigned leads
+          // Total assigned leads - count from lead_history where this user was assigned
           let assignedQuery = supabase
-            .from('leads')
-            .select('*', { count: 'exact', head: true })
-            .eq('assigned_to', userId);
+            .from('lead_history')
+            .select('lead_id', { count: 'exact', head: true })
+            .eq('new_assigned_to', userId)
+            .not('old_assigned_to', 'eq', userId);
           
           if (dateRange?.from) {
-            assignedQuery = assignedQuery.gte('assigned_at', dateRange.from.toISOString());
+            assignedQuery = assignedQuery.gte('created_at', dateRange.from.toISOString());
           }
           if (dateRange?.to) {
-            assignedQuery = assignedQuery.lte('assigned_at', dateRange.to.toISOString());
+            assignedQuery = assignedQuery.lte('created_at', dateRange.to.toISOString());
           }
           
           const { count: totalAssigned } = await assignedQuery;
 
-          // Leads by status
-          let statusQuery = supabase
-            .from('leads')
-            .select('status')
-            .eq('assigned_to', userId);
+          // Get distinct lead IDs for status breakdown
+          let historyQuery = supabase
+            .from('lead_history')
+            .select('lead_id')
+            .eq('new_assigned_to', userId)
+            .not('old_assigned_to', 'eq', userId);
           
           if (dateRange?.from) {
-            statusQuery = statusQuery.gte('assigned_at', dateRange.from.toISOString());
+            historyQuery = historyQuery.gte('created_at', dateRange.from.toISOString());
           }
           if (dateRange?.to) {
-            statusQuery = statusQuery.lte('assigned_at', dateRange.to.toISOString());
+            historyQuery = historyQuery.lte('created_at', dateRange.to.toISOString());
           }
           
-          const { data: statusBreakdown } = await statusQuery;
+          const { data: historyData } = await historyQuery;
+          const leadIds = historyData?.map(h => h.lead_id) || [];
+          
+          // Get current status of these leads
+          const { data: statusBreakdown } = leadIds.length > 0 
+            ? await supabase.from('leads').select('status').in('id', leadIds)
+            : { data: [] };
 
-          // L6 appointments
+          // L6 appointments - count from lead_history where status changed to L6 by this user
           let l6Query = supabase
-            .from('leads')
+            .from('lead_history')
             .select('*', { count: 'exact', head: true })
-            .eq('assigned_to', userId)
-            .eq('status', 'L6-Appointment set');
+            .eq('changed_by', userId)
+            .eq('new_status', 'L6-Appointment set');
           
           if (dateRange?.from) {
-            l6Query = l6Query.gte('assigned_at', dateRange.from.toISOString());
+            l6Query = l6Query.gte('created_at', dateRange.from.toISOString());
           }
           if (dateRange?.to) {
-            l6Query = l6Query.lte('assigned_at', dateRange.to.toISOString());
+            l6Query = l6Query.lte('created_at', dateRange.to.toISOString());
           }
           
           const { count: l6Count } = await l6Query;
@@ -95,10 +103,12 @@ export function TelesalesReport() {
           
           const { count: confirmedCount } = await confirmedQuery;
 
-          const statusCounts = statusBreakdown?.reduce((acc, lead) => {
-            acc[lead.status] = (acc[lead.status] || 0) + 1;
+          const statusCounts = (statusBreakdown || []).reduce((acc, lead) => {
+            if (lead && lead.status) {
+              acc[lead.status] = (acc[lead.status] || 0) + 1;
+            }
             return acc;
-          }, {} as Record<string, number>) || {};
+          }, {} as Record<string, number>);
 
           return {
             userId,
