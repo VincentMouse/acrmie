@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Pencil } from 'lucide-react';
 import { z } from 'zod';
 
 const ROLE_OPTIONS = [
@@ -32,6 +32,8 @@ export function UserManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -107,6 +109,46 @@ export function UserManagement() {
     },
   });
 
+  const updateRolesMutation = useMutation({
+    mutationFn: async ({ userId, roles }: { userId: string; roles: string[] }) => {
+      // First, delete all existing roles for the user
+      const { error: deleteError } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId);
+
+      if (deleteError) throw deleteError;
+
+      // Then insert the new roles
+      if (roles.length > 0) {
+        const { error: insertError } = await supabase
+          .from('user_roles')
+          .insert(roles.map(role => ({ 
+            user_id: userId, 
+            role: role as 'admin' | 'sales_manager' | 'tele_sales' | 'customer_service' | 'view_only'
+          })));
+
+        if (insertError) throw insertError;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({ 
+        title: 'Roles updated',
+        description: 'User roles have been successfully updated',
+      });
+      setEditingUser(null);
+      setSelectedRoles([]);
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Failed to update roles',
+        description: error.message,
+        variant: 'destructive'
+      });
+    },
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -122,6 +164,28 @@ export function UserManagement() {
         });
       }
     }
+  };
+
+  const handleEditRoles = (user: any) => {
+    setEditingUser(user);
+    setSelectedRoles(user.user_roles?.map((ur: any) => ur.role) || []);
+  };
+
+  const handleSaveRoles = () => {
+    if (editingUser) {
+      updateRolesMutation.mutate({
+        userId: editingUser.id,
+        roles: selectedRoles,
+      });
+    }
+  };
+
+  const toggleRole = (role: string) => {
+    setSelectedRoles(prev => 
+      prev.includes(role) 
+        ? prev.filter(r => r !== role)
+        : [...prev, role]
+    );
   };
 
   if (isLoading) {
@@ -222,6 +286,7 @@ export function UserManagement() {
               <TableHead>Email</TableHead>
               <TableHead>Roles</TableHead>
               <TableHead>Created</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -239,11 +304,67 @@ export function UserManagement() {
                   </div>
                 </TableCell>
                 <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleEditRoles(user)}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Roles for {editingUser?.full_name}</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Select Roles</Label>
+              <div className="space-y-2">
+                {ROLE_OPTIONS.map((role) => (
+                  <div key={role.value} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={`role-${role.value}`}
+                      checked={selectedRoles.includes(role.value)}
+                      onChange={() => toggleRole(role.value)}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor={`role-${role.value}`} className="cursor-pointer">
+                      {role.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={handleSaveRoles}
+                disabled={updateRolesMutation.isPending}
+                className="flex-1"
+              >
+                {updateRolesMutation.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setEditingUser(null)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
