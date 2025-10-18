@@ -109,44 +109,47 @@ export function AgentsActivityReport() {
         .select('user_id, status, status_started_at, updated_at')
         .in('user_id', agents.map(a => a.userId));
 
-      // Create hourly grid (24 hours)
-      const hours = Array.from({ length: 24 }, (_, i) => i);
+      // Create 30-minute interval grid (48 intervals per day)
+      const intervals = Array.from({ length: 48 }, (_, i) => i);
       
       return agents.map(agent => {
         const agentStatus = currentStatuses?.find(s => s.user_id === agent.userId);
         
-        const hourlyStatus = hours.map(hour => {
-          const hourStart = new Date(selectedDate);
-          hourStart.setHours(hour, 0, 0, 0);
-          const hourEnd = new Date(selectedDate);
-          hourEnd.setHours(hour, 59, 59, 999);
+        const intervalStatus = intervals.map(interval => {
+          const hour = Math.floor(interval / 2);
+          const minute = (interval % 2) * 30;
+          
+          const intervalStart = new Date(selectedDate);
+          intervalStart.setHours(hour, minute, 0, 0);
+          const intervalEnd = new Date(selectedDate);
+          intervalEnd.setHours(hour, minute + 29, 59, 999);
 
           // If no status record, agent is offline
           if (!agentStatus) {
-            return { hour, status: 'offline' };
+            return { interval, hour, minute, status: 'offline' };
           }
 
           const statusStart = new Date(agentStatus.status_started_at);
           
-          // For current day, show status if it started before this hour and hasn't ended
+          // For current day, show status if it started before this interval and hasn't ended
           const isToday = selectedDate.toDateString() === now.toDateString();
-          if (isToday && statusStart <= hourEnd && hourEnd <= now) {
-            return { hour, status: agentStatus.status };
+          if (isToday && statusStart <= intervalEnd && intervalEnd <= now) {
+            return { interval, hour, minute, status: agentStatus.status };
           }
           
           // For past dates, only show if status started during the selected date
           const statusStartedToday = statusStart >= startOfDay && statusStart <= endOfDay;
-          if (!isToday && statusStartedToday && statusStart <= hourEnd) {
-            return { hour, status: agentStatus.status };
+          if (!isToday && statusStartedToday && statusStart <= intervalEnd) {
+            return { interval, hour, minute, status: agentStatus.status };
           }
 
-          return { hour, status: 'offline' };
+          return { interval, hour, minute, status: 'offline' };
         });
 
         return {
           userId: agent.userId,
           fullName: agent.fullName,
-          hourlyStatus
+          intervalStatus
         };
       });
     },
@@ -256,7 +259,7 @@ export function AgentsActivityReport() {
             {/* Time header */}
             <div className="flex items-center gap-1">
               <div className="w-32 flex-shrink-0 text-xs font-semibold">Agent</div>
-              <div className="flex gap-1 flex-1 overflow-x-auto">
+              <div className="flex gap-0.5 flex-1 overflow-x-auto">
                 {Array.from({ length: 24 }, (_, i) => (
                   <div
                     key={`hour-${i}`}
@@ -274,15 +277,15 @@ export function AgentsActivityReport() {
                 <div className="w-32 flex-shrink-0 text-sm truncate font-medium" title={agent.fullName}>
                   {agent.fullName}
                 </div>
-                <div className="flex gap-1 flex-1 overflow-x-auto">
-                  {agent.hourlyStatus.map((hourData) => (
+                <div className="flex gap-0.5 flex-1 overflow-x-auto">
+                  {agent.intervalStatus.map((intervalData) => (
                     <div
-                      key={`${agent.userId}-hour-${hourData.hour}`}
+                      key={`${agent.userId}-interval-${intervalData.interval}`}
                       className={cn(
-                        'flex-shrink-0 w-8 h-8 rounded border border-border',
-                        getStatusColor(hourData.status)
+                        'flex-shrink-0 w-4 h-8 rounded border border-border',
+                        getStatusColor(intervalData.status)
                       )}
-                      title={`${hourData.hour}:00 - ${getStatusLabel(hourData.status)}`}
+                      title={`${intervalData.hour}:${intervalData.minute.toString().padStart(2, '0')} - ${getStatusLabel(intervalData.status)}`}
                     />
                   ))}
                 </div>
