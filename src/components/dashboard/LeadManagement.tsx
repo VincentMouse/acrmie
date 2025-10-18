@@ -590,6 +590,7 @@ export function LeadManagement() {
               : `[Appointment Booked] [Follow-up Session] Concurrent Service: ${branchServices?.find(s => s.id === concurrentService)?.name || concurrentService} | Session Number: ${sessionNumber}`)
           : (callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`),
         processed_at: getEffectiveTime().toISOString(), // Track when telesales finished processing
+        call_duration_seconds: elapsedTime, // Save call duration for reporting
       };
 
 
@@ -762,7 +763,56 @@ export function LeadManagement() {
     }
   }, [statusUpdate, selfManagedL2Count]);
 
-  // Timer for lead call tracking
+  // Timer for lead call tracking - increment elapsed time during call
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (pulledLead && isLeadModalOpen) {
+      // Start timer when call dialog is open
+      interval = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [pulledLead, isLeadModalOpen]);
+
+  // Update agent status when entering/exiting call
+  useEffect(() => {
+    const updateAgentStatus = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      if (isLeadModalOpen && pulledLead) {
+        // Set status to "in_call"
+        await supabase
+          .from('agent_status')
+          .upsert({
+            user_id: user.id,
+            status: 'in_call',
+            status_started_at: new Date().toISOString(),
+            lead_id: pulledLead.id,
+            updated_at: new Date().toISOString(),
+          });
+      } else {
+        // Set status to "idle"
+        await supabase
+          .from('agent_status')
+          .upsert({
+            user_id: user.id,
+            status: 'idle',
+            status_started_at: new Date().toISOString(),
+            lead_id: null,
+            updated_at: new Date().toISOString(),
+          });
+      }
+    };
+
+    updateAgentStatus();
+  }, [isLeadModalOpen, pulledLead]);
+
   useEffect(() => {
     const handleTimeOverrideChange = () => {
       // Invalidate queries to refresh lead data with new effective time

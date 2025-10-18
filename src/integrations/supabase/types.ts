@@ -14,6 +14,41 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_status: {
+        Row: {
+          id: string
+          lead_id: string | null
+          status: string
+          status_started_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          lead_id?: string | null
+          status: string
+          status_started_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          lead_id?: string | null
+          status?: string
+          status_started_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_status_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           appointment_date: string
@@ -346,6 +381,7 @@ export type Database = {
           address: string | null
           assigned_at: string | null
           assigned_to: string | null
+          call_duration_seconds: number | null
           campaign_name: string | null
           cooldown_until: string | null
           created_at: string | null
@@ -375,6 +411,7 @@ export type Database = {
           address?: string | null
           assigned_at?: string | null
           assigned_to?: string | null
+          call_duration_seconds?: number | null
           campaign_name?: string | null
           cooldown_until?: string | null
           created_at?: string | null
@@ -404,6 +441,7 @@ export type Database = {
           address?: string | null
           assigned_at?: string | null
           assigned_to?: string | null
+          call_duration_seconds?: number | null
           campaign_name?: string | null
           cooldown_until?: string | null
           created_at?: string | null
