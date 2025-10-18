@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, Phone, Eye, Check, ChevronsUpDown, Search, Filter, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -22,6 +23,10 @@ export function AppointmentManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { isAdmin, isSalesManager, isCustomerService } = useUserRole();
+  
+  // Check if user has management permissions
+  const canManageAppointments = isAdmin || isSalesManager || isCustomerService;
   
   // State to force re-render when time override changes
   const [, setTimeOverrideTrigger] = useState(0);
@@ -861,17 +866,18 @@ export function AppointmentManagement() {
         <div>
           <h2 className="text-2xl font-bold">Appointment Management</h2>
           <p className="text-muted-foreground mt-1">
-            Manage customer appointments and confirmation
+            {canManageAppointments ? 'Manage customer appointments and confirmation' : 'View customer appointments'}
           </p>
         </div>
         
-        <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Calendar className="w-4 h-4 mr-2" />
-              Schedule Appointment
-            </Button>
-          </DialogTrigger>
+        {canManageAppointments && (
+          <Dialog open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Calendar className="w-4 h-4 mr-2" />
+                Schedule Appointment
+              </Button>
+            </DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Schedule New Appointment</DialogTitle>
@@ -929,6 +935,7 @@ export function AppointmentManagement() {
             </form>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Search and Filter Section */}
@@ -1128,7 +1135,17 @@ export function AppointmentManagement() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      {isFinalStatus(appointment) ? (
+                      {!canManageAppointments ? (
+                        // View-only mode for non-authorized roles
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewAppointment(appointment)}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View
+                        </Button>
+                      ) : isFinalStatus(appointment) ? (
                         // Final status - only View button
                         <Button
                           size="sm"
