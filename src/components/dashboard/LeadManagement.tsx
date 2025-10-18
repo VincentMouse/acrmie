@@ -795,6 +795,8 @@ export function LeadManagement() {
             status_started_at: new Date().toISOString(),
             lead_id: pulledLead.id,
             updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'user_id'
           });
       } else {
         // Set status to "idle"
@@ -806,6 +808,8 @@ export function LeadManagement() {
             status_started_at: new Date().toISOString(),
             lead_id: null,
             updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'user_id'
           });
       }
     };
