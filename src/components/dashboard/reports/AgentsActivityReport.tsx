@@ -91,7 +91,7 @@ export function AgentsActivityReport() {
     refetchInterval: 5000 // Refresh every 5 seconds
   });
 
-  // Heat map data for selected date
+  // Heat map data for selected date - showing current/recent status only
   const { data: heatmapData } = useQuery({
     queryKey: ['agent-heatmap', selectedDate, agents],
     queryFn: async () => {
@@ -101,21 +101,19 @@ export function AgentsActivityReport() {
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(selectedDate);
       endOfDay.setHours(23, 59, 59, 999);
+      const now = new Date();
 
-      // Get all status changes for the selected date
-      const { data: history } = await supabase
+      // Get current status for all agents
+      const { data: currentStatuses } = await supabase
         .from('agent_status')
         .select('user_id, status, status_started_at, updated_at')
-        .in('user_id', agents.map(a => a.userId))
-        .gte('status_started_at', startOfDay.toISOString())
-        .lte('status_started_at', endOfDay.toISOString())
-        .order('status_started_at', { ascending: true });
+        .in('user_id', agents.map(a => a.userId));
 
       // Create hourly grid (24 hours)
       const hours = Array.from({ length: 24 }, (_, i) => i);
       
       return agents.map(agent => {
-        const agentHistory = history?.filter(h => h.user_id === agent.userId) || [];
+        const agentStatus = currentStatuses?.find(s => s.user_id === agent.userId);
         
         const hourlyStatus = hours.map(hour => {
           const hourStart = new Date(selectedDate);
@@ -123,17 +121,26 @@ export function AgentsActivityReport() {
           const hourEnd = new Date(selectedDate);
           hourEnd.setHours(hour, 59, 59, 999);
 
-          // Find the status that was active during this hour
-          const activeStatus = agentHistory.find(h => {
-            const statusStart = new Date(h.status_started_at);
-            const statusEnd = new Date(h.updated_at);
-            return statusStart <= hourEnd && statusEnd >= hourStart;
-          });
+          // If no status record, agent is offline
+          if (!agentStatus) {
+            return { hour, status: 'offline' };
+          }
 
-          return {
-            hour,
-            status: activeStatus?.status || 'offline'
-          };
+          const statusStart = new Date(agentStatus.status_started_at);
+          
+          // For current day, show status if it started before this hour and hasn't ended
+          const isToday = selectedDate.toDateString() === now.toDateString();
+          if (isToday && statusStart <= hourEnd && hourEnd <= now) {
+            return { hour, status: agentStatus.status };
+          }
+          
+          // For past dates, only show if status started during the selected date
+          const statusStartedToday = statusStart >= startOfDay && statusStart <= endOfDay;
+          if (!isToday && statusStartedToday && statusStart <= hourEnd) {
+            return { hour, status: agentStatus.status };
+          }
+
+          return { hour, status: 'offline' };
         });
 
         return {
@@ -143,7 +150,8 @@ export function AgentsActivityReport() {
         };
       });
     },
-    enabled: !!agents
+    enabled: !!agents,
+    refetchInterval: 30000 // Refresh every 30 seconds for today's heat map
   });
 
   // Subscribe to real-time updates
@@ -247,14 +255,14 @@ export function AgentsActivityReport() {
           <div className="space-y-2">
             {/* Time header */}
             <div className="flex items-center gap-1">
-              <div className="w-32 flex-shrink-0"></div>
+              <div className="w-32 flex-shrink-0 text-xs font-semibold">Agent</div>
               <div className="flex gap-1 flex-1 overflow-x-auto">
                 {Array.from({ length: 24 }, (_, i) => (
                   <div
-                    key={i}
+                    key={`hour-${i}`}
                     className="flex-shrink-0 w-8 text-xs text-center text-muted-foreground"
                   >
-                    {i}
+                    {i}h
                   </div>
                 ))}
               </div>
@@ -262,16 +270,16 @@ export function AgentsActivityReport() {
 
             {/* Agent rows */}
             {heatmapData?.map((agent) => (
-              <div key={agent.userId} className="flex items-center gap-1">
-                <div className="w-32 flex-shrink-0 text-sm truncate" title={agent.fullName}>
+              <div key={`agent-${agent.userId}`} className="flex items-center gap-1">
+                <div className="w-32 flex-shrink-0 text-sm truncate font-medium" title={agent.fullName}>
                   {agent.fullName}
                 </div>
                 <div className="flex gap-1 flex-1 overflow-x-auto">
                   {agent.hourlyStatus.map((hourData) => (
                     <div
-                      key={hourData.hour}
+                      key={`${agent.userId}-hour-${hourData.hour}`}
                       className={cn(
-                        'flex-shrink-0 w-8 h-8 rounded',
+                        'flex-shrink-0 w-8 h-8 rounded border border-border',
                         getStatusColor(hourData.status)
                       )}
                       title={`${hourData.hour}:00 - ${getStatusLabel(hourData.status)}`}
