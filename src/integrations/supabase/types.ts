@@ -23,6 +23,7 @@ export type Database = {
           check_in_status: string | null
           check_in_updated_at: string | null
           confirmation_status: string
+          confirmed_at: string | null
           created_at: string | null
           created_by: string | null
           id: string
@@ -45,6 +46,7 @@ export type Database = {
           check_in_status?: string | null
           check_in_updated_at?: string | null
           confirmation_status?: string
+          confirmed_at?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -67,6 +69,7 @@ export type Database = {
           check_in_status?: string | null
           check_in_updated_at?: string | null
           confirmation_status?: string
+          confirmed_at?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
@@ -363,6 +366,7 @@ export type Database = {
           marketer_name: string | null
           notes: string | null
           phone: string
+          processed_at: string | null
           service_product: string
           status: Database["public"]["Enums"]["lead_status"]
           updated_at: string | null
@@ -391,6 +395,7 @@ export type Database = {
           marketer_name?: string | null
           notes?: string | null
           phone: string
+          processed_at?: string | null
           service_product?: string
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string | null
@@ -419,6 +424,7 @@ export type Database = {
           marketer_name?: string | null
           notes?: string | null
           phone?: string
+          processed_at?: string | null
           service_product?: string
           status?: Database["public"]["Enums"]["lead_status"]
           updated_at?: string | null

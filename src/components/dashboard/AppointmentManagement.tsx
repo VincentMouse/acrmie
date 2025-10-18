@@ -404,17 +404,24 @@ export function AppointmentManagement() {
       // Combine appointment date and time
       const combinedDateTime = `${editableFields.appointmentDate}T${editableFields.appointmentTime}:00`;
       
+      const updateData: any = {
+        confirmation_status: status,
+        processing_by: null,
+        processing_at: null,
+        appointment_date: combinedDateTime,
+        branch_id: editableFields.branchId,
+        notes: editableFields.notes,
+        service_product: selectedServiceId || editableFields.serviceProduct,
+      };
+
+      // Set confirmed_at timestamp when confirming an L6 appointment
+      if (status === 'confirmed') {
+        updateData.confirmed_at = getEffectiveTime().toISOString();
+      }
+
       const { error } = await supabase
         .from('appointments')
-        .update({
-          confirmation_status: status,
-          processing_by: null,
-          processing_at: null,
-          appointment_date: combinedDateTime,
-          branch_id: editableFields.branchId,
-          notes: editableFields.notes,
-          service_product: selectedServiceId || editableFields.serviceProduct,
-        })
+        .update(updateData)
         .eq('id', appointmentId);
 
       if (error) throw error;

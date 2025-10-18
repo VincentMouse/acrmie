@@ -589,6 +589,7 @@ export function LeadManagement() {
               ? `[Appointment Booked] [Consultation] Concern: ${concern} | Expectation: ${expectation} | Budget: ${budget} | Service/Product: ${branchServices?.find(s => s.id === suggestedService)?.name || suggestedService}${additionalSuggestedService ? ` | Additional Suggested Service: ${branchServices?.find(s => s.id === additionalSuggestedService)?.name || additionalSuggestedService}` : ''}${additionalNotes ? ` | Notes: ${additionalNotes}` : ''}`
               : `[Appointment Booked] [Follow-up Session] Concurrent Service: ${branchServices?.find(s => s.id === concurrentService)?.name || concurrentService} | Session Number: ${sessionNumber}`)
           : (callNotes ? `[${callOutcome}] ${callNotes}` : `[${callOutcome}]`),
+        processed_at: getEffectiveTime().toISOString(), // Track when telesales finished processing
       };
 
 
