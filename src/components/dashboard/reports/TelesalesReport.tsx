@@ -12,6 +12,7 @@ import { DateRange } from 'react-day-picker';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import React from 'react';
 
 type DateFilterType = 'generation' | 'processing';
 
@@ -126,21 +127,34 @@ export function TelesalesReport() {
   });
 
   const getStatsForLeads = async (userId: string, leadIds: string[], getLeadCount: number) => {
-    // Get unique leads handled (processed) by this agent
-    let handledQuery = supabase
-      .from('leads')
-      .select('id, status, call_duration_seconds', { count: 'exact', head: false })
-      .eq('assigned_to', userId)
-      .not('processed_at', 'is', null);
+    // Get unique leads handled (processed) by this agent using lead_history
+    let historyQuery = supabase
+      .from('lead_history')
+      .select('lead_id')
+      .eq('changed_by', userId);
+    
+    // If using generation date filter, only consider the pre-filtered lead IDs
+    if (dateFilterType === 'generation' && leadIds.length > 0) {
+      historyQuery = historyQuery.in('lead_id', leadIds);
+    }
     
     if (dateFilterType === 'processing' && dateRange?.from) {
-      handledQuery = handledQuery.gte('processed_at', dateRange.from.toISOString());
+      historyQuery = historyQuery.gte('created_at', dateRange.from.toISOString());
     }
     if (dateFilterType === 'processing' && dateRange?.to) {
-      handledQuery = handledQuery.lte('processed_at', dateRange.to.toISOString());
+      historyQuery = historyQuery.lte('created_at', dateRange.to.toISOString());
     }
     
-    const { data: handledLeads } = await handledQuery;
+    const { data: historyData } = await historyQuery;
+    const uniqueLeadIds = [...new Set(historyData?.map(h => h.lead_id) || [])];
+    
+    // Get lead details for these leads
+    const { data: handledLeads } = uniqueLeadIds.length > 0
+      ? await supabase
+          .from('leads')
+          .select('id, status, call_duration_seconds')
+          .in('id', uniqueLeadIds)
+      : { data: [] };
     const leadsHandled = handledLeads?.length || 0;
     
     // Count status breakdown
@@ -380,8 +394,8 @@ export function TelesalesReport() {
             </TableHeader>
             <TableBody>
               {telesalesStats?.map((stat) => (
-                <>
-                  <TableRow key={stat.userId}>
+                <React.Fragment key={stat.userId}>
+                  <TableRow>
                     <TableCell>
                       <Button
                         variant="ghost"
@@ -441,7 +455,7 @@ export function TelesalesReport() {
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </React.Fragment>
               ))}
             </TableBody>
           </Table>
