@@ -48,7 +48,8 @@ export default function Dashboard() {
         <Route path="/appointments" element={<AppointmentManagement />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/branches" element={<BranchManagement />} />
-        <Route path="/reports" element={<Reports />} />
+        <Route path="/reports/:reportType" element={<Reports />} />
+        <Route path="/reports" element={<Navigate to="/dashboard/reports/overall" replace />} />
         <Route path="/users" element={<UserManagement />} />
         
       </Routes>
