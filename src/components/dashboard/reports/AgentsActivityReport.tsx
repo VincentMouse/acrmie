@@ -1,0 +1,305 @@
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+type AgentStatus = {
+  userId: string;
+  fullName: string;
+  status: 'in_call' | 'idle' | 'offline';
+  statusDuration: string;
+  lastActivity: Date | null;
+};
+
+export function AgentsActivityReport() {
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  // Get all CS and telesales agents
+  const { data: agents } = useQuery({
+    queryKey: ['agents'],
+    queryFn: async () => {
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('user_id, role')
+        .in('role', ['tele_sales', 'customer_service']);
+
+      if (!roles || roles.length === 0) return [];
+
+      const userIds = [...new Set(roles.map(r => r.user_id))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', userIds);
+
+      return profiles?.map(p => ({
+        userId: p.id,
+        fullName: p.full_name,
+        role: roles.find(r => r.user_id === p.id)?.role || 'tele_sales'
+      })) || [];
+    }
+  });
+
+  // Real-time agent status
+  const { data: agentStatuses, refetch: refetchStatuses } = useQuery({
+    queryKey: ['agent-statuses'],
+    queryFn: async () => {
+      if (!agents) return [];
+
+      const { data: statuses } = await supabase
+        .from('agent_status')
+        .select('user_id, status, status_started_at, updated_at')
+        .in('user_id', agents.map(a => a.userId));
+
+      const now = new Date();
+      
+      return agents.map(agent => {
+        const status = statuses?.find(s => s.user_id === agent.userId);
+        
+        if (!status) {
+          return {
+            userId: agent.userId,
+            fullName: agent.fullName,
+            status: 'offline' as const,
+            statusDuration: '-',
+            lastActivity: null
+          };
+        }
+
+        const startTime = new Date(status.status_started_at);
+        const diffMs = now.getTime() - startTime.getTime();
+        const hours = Math.floor(diffMs / (1000 * 60 * 60));
+        const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        const duration = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+
+        return {
+          userId: agent.userId,
+          fullName: agent.fullName,
+          status: status.status as 'in_call' | 'idle' | 'offline',
+          statusDuration: duration,
+          lastActivity: new Date(status.updated_at)
+        };
+      });
+    },
+    enabled: !!agents,
+    refetchInterval: 5000 // Refresh every 5 seconds
+  });
+
+  // Heat map data for selected date
+  const { data: heatmapData } = useQuery({
+    queryKey: ['agent-heatmap', selectedDate, agents],
+    queryFn: async () => {
+      if (!agents) return [];
+
+      const startOfDay = new Date(selectedDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(selectedDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      // Get all status changes for the selected date
+      const { data: history } = await supabase
+        .from('agent_status')
+        .select('user_id, status, status_started_at, updated_at')
+        .in('user_id', agents.map(a => a.userId))
+        .gte('status_started_at', startOfDay.toISOString())
+        .lte('status_started_at', endOfDay.toISOString())
+        .order('status_started_at', { ascending: true });
+
+      // Create hourly grid (24 hours)
+      const hours = Array.from({ length: 24 }, (_, i) => i);
+      
+      return agents.map(agent => {
+        const agentHistory = history?.filter(h => h.user_id === agent.userId) || [];
+        
+        const hourlyStatus = hours.map(hour => {
+          const hourStart = new Date(selectedDate);
+          hourStart.setHours(hour, 0, 0, 0);
+          const hourEnd = new Date(selectedDate);
+          hourEnd.setHours(hour, 59, 59, 999);
+
+          // Find the status that was active during this hour
+          const activeStatus = agentHistory.find(h => {
+            const statusStart = new Date(h.status_started_at);
+            const statusEnd = new Date(h.updated_at);
+            return statusStart <= hourEnd && statusEnd >= hourStart;
+          });
+
+          return {
+            hour,
+            status: activeStatus?.status || 'offline'
+          };
+        });
+
+        return {
+          userId: agent.userId,
+          fullName: agent.fullName,
+          hourlyStatus
+        };
+      });
+    },
+    enabled: !!agents
+  });
+
+  // Subscribe to real-time updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('agent-status-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'agent_status'
+        },
+        () => {
+          refetchStatuses();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [refetchStatuses]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'in_call':
+        return 'bg-green-500 hover:bg-green-600';
+      case 'idle':
+        return 'bg-yellow-500 hover:bg-yellow-600';
+      case 'offline':
+        return 'bg-gray-400 hover:bg-gray-500';
+      default:
+        return 'bg-gray-400 hover:bg-gray-500';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'in_call':
+        return 'Calling';
+      case 'idle':
+        return 'Idled';
+      case 'offline':
+        return 'Offline';
+      default:
+        return 'Unknown';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Real-time Agent Status */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Current Agent Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {agentStatuses?.map((agent) => (
+              <div
+                key={agent.userId}
+                className="p-4 border rounded-lg space-y-2"
+              >
+                <div className="font-semibold">{agent.fullName}</div>
+                <Badge className={cn(getStatusColor(agent.status), 'text-white')}>
+                  {agent.status === 'in_call' && `Calling for ${agent.statusDuration}`}
+                  {agent.status === 'idle' && `Idled for ${agent.statusDuration}`}
+                  {agent.status === 'offline' && 'Offline'}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Heat Map */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Activity Heat Map</CardTitle>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-[240px] justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(selectedDate, 'PPP')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => date && setSelectedDate(date)}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {/* Time header */}
+            <div className="flex items-center gap-1">
+              <div className="w-32 flex-shrink-0"></div>
+              <div className="flex gap-1 flex-1 overflow-x-auto">
+                {Array.from({ length: 24 }, (_, i) => (
+                  <div
+                    key={i}
+                    className="flex-shrink-0 w-8 text-xs text-center text-muted-foreground"
+                  >
+                    {i}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Agent rows */}
+            {heatmapData?.map((agent) => (
+              <div key={agent.userId} className="flex items-center gap-1">
+                <div className="w-32 flex-shrink-0 text-sm truncate" title={agent.fullName}>
+                  {agent.fullName}
+                </div>
+                <div className="flex gap-1 flex-1 overflow-x-auto">
+                  {agent.hourlyStatus.map((hourData) => (
+                    <div
+                      key={hourData.hour}
+                      className={cn(
+                        'flex-shrink-0 w-8 h-8 rounded',
+                        getStatusColor(hourData.status)
+                      )}
+                      title={`${hourData.hour}:00 - ${getStatusLabel(hourData.status)}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center gap-4 mt-6 pt-4 border-t">
+            <span className="text-sm font-semibold">Legend:</span>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-green-500"></div>
+              <span className="text-sm">In Call</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-yellow-500"></div>
+              <span className="text-sm">Idle</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 rounded bg-gray-400"></div>
+              <span className="text-sm">Offline</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

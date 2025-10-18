@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { Users, UserPlus, FileText, Calendar, Building2, Building, Clock, BarChart3, ChevronDown, TrendingUp, HeadphonesIcon } from 'lucide-react';
+import { Users, UserPlus, FileText, Calendar, Building2, Building, Clock, BarChart3, ChevronDown, TrendingUp, HeadphonesIcon, Activity } from 'lucide-react';
 import { useUserRole } from '@/hooks/useUserRole';
 import {
   Sidebar,
@@ -46,6 +46,7 @@ export function AppSidebar() {
     { title: 'Telesales', url: '/dashboard/reports/telesales', icon: Users },
     { title: 'Customer Service', url: '/dashboard/reports/customer-service', icon: HeadphonesIcon },
     { title: 'Marketing', url: '/dashboard/reports/marketing', icon: TrendingUp },
+    { title: 'Agents Activity', url: '/dashboard/reports/agents-activity', icon: Activity },
   ];
 
   const visibleItems = menuItems.filter(item => item.show);

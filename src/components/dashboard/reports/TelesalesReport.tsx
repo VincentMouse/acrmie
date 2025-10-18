@@ -389,7 +389,6 @@ export function TelesalesReport() {
                 <TableHead>CS Confirmed</TableHead>
                 <TableHead>Confirmation Rate</TableHead>
                 <TableHead>Avg Call Time</TableHead>
-                <TableHead>Agent Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -418,11 +417,10 @@ export function TelesalesReport() {
                     <TableCell>{stat.confirmedCount}</TableCell>
                     <TableCell>{stat.confirmationRate}%</TableCell>
                     <TableCell>{formatCallTime(stat.avgCallTime)}</TableCell>
-                    <TableCell>{getAgentStatusDisplay(stat.userId)}</TableCell>
                   </TableRow>
                   {expandedRows.has(stat.userId) && (
                     <TableRow>
-                      <TableCell colSpan={10} className="bg-muted/50">
+                      <TableCell colSpan={9} className="bg-muted/50">
                         <div className="py-4 px-8">
                           <h4 className="font-semibold mb-3 text-sm">Status Breakdown</h4>
                           <div className="grid grid-cols-5 gap-4">
