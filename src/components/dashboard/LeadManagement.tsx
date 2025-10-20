@@ -475,74 +475,94 @@ export function LeadManagement() {
       }
 
       const now = getEffectiveTime().toISOString();
+      let attempts = 0;
+      const maxAttempts = 5;
 
-      // HIGHEST PRIORITY: Try to get an L2 reschedule lead where callback time has arrived
-      let { data: availableLead } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('status', 'L2-Call reschedule')
-        .is('assigned_to', null)
-        .not('cooldown_until', 'is', null)
-        .lte('cooldown_until', now)
-        .order('cooldown_until', { ascending: true }) // Prioritize earliest callbacks
-        .limit(1)
-        .maybeSingle();
+      while (attempts < maxAttempts) {
+        attempts++;
 
-      // Try to get L0 (Fresh Lead) if no priority L2
-      if (!availableLead) {
-        const result = await supabase
+        // HIGHEST PRIORITY: Try to get an L2 reschedule lead where callback time has arrived
+        let { data: availableLead } = await supabase
           .from('leads')
           .select('*')
-          .eq('status', 'L0-Fresh Lead')
+          .eq('status', 'L2-Call reschedule')
           .is('assigned_to', null)
-          .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
+          .not('cooldown_until', 'is', null)
+          .lte('cooldown_until', now)
+          .order('cooldown_until', { ascending: true }) // Prioritize earliest callbacks
           .limit(1)
           .maybeSingle();
-        availableLead = result.data;
-      }
 
-      // If no L0, try L1 (No Answer)
-      if (!availableLead) {
-        const result = await supabase
+        // Try to get L0 (Fresh Lead) if no priority L2
+        if (!availableLead) {
+          const result = await supabase
+            .from('leads')
+            .select('*')
+            .eq('status', 'L0-Fresh Lead')
+            .is('assigned_to', null)
+            .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
+            .limit(1)
+            .maybeSingle();
+          availableLead = result.data;
+        }
+
+        // If no L0, try L1 (No Answer)
+        if (!availableLead) {
+          const result = await supabase
+            .from('leads')
+            .select('*')
+            .eq('status', 'L1-Call back')
+            .is('assigned_to', null)
+            .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
+            .limit(1)
+            .maybeSingle();
+          availableLead = result.data;
+        }
+
+        // If no L1, try L5 (Thinking)
+        if (!availableLead) {
+          const result = await supabase
+            .from('leads')
+            .select('*')
+            .eq('status', 'L5-Thinking')
+            .is('assigned_to', null)
+            .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
+            .limit(1)
+            .maybeSingle();
+          availableLead = result.data;
+        }
+
+        if (!availableLead) {
+          throw new Error('No available leads at this time');
+        }
+
+        // Assign the lead to the current user - with race condition protection
+        // Only update if assigned_to is still null
+        const { data: updatedLead, error } = await supabase
           .from('leads')
-          .select('*')
-          .eq('status', 'L1-Call back')
-          .is('assigned_to', null)
-          .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
-          .limit(1)
+          .update({ 
+            assigned_to: user.id,
+            assigned_at: getEffectiveTime().toISOString()
+          })
+          .eq('id', availableLead.id)
+          .is('assigned_to', null) // Critical: only update if still unassigned
+          .select()
           .maybeSingle();
-        availableLead = result.data;
+
+        if (error) throw error;
+
+        // If updatedLead is null, another agent grabbed this lead first
+        if (!updatedLead) {
+          // Retry with a different lead
+          continue;
+        }
+
+        // Successfully claimed the lead
+        return updatedLead;
       }
 
-      // If no L1, try L5 (Thinking)
-      if (!availableLead) {
-        const result = await supabase
-          .from('leads')
-          .select('*')
-          .eq('status', 'L5-Thinking')
-          .is('assigned_to', null)
-          .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
-          .limit(1)
-          .maybeSingle();
-        availableLead = result.data;
-      }
-
-      if (!availableLead) {
-        throw new Error('No available leads at this time');
-      }
-
-      // Assign the lead to the current user
-      const { error } = await supabase
-        .from('leads')
-        .update({ 
-          assigned_to: user.id,
-          assigned_at: getEffectiveTime().toISOString()
-        })
-        .eq('id', availableLead.id);
-
-      if (error) throw error;
-
-      return availableLead;
+      // If we've exhausted all retry attempts
+      throw new Error('Unable to assign lead. Please try again.');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
