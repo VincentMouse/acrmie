@@ -1878,9 +1878,9 @@ export function LeadManagement() {
 
       {/* Status Summary */}
       {!isLeadManagementPage && (
-        <div className="mb-6 p-4 bg-muted/50 rounded-lg">
-          <h3 className="text-lg font-semibold mb-3">Lead Status Summary - Click to Filter</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+        <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+          <h3 className="text-sm font-semibold mb-2">Lead Status Summary - Click to Filter</h3>
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
             {Object.entries(STATUS_LABELS).filter(([key]) => key !== 'hibernation').map(([statusKey, statusLabel]) => {
               const count = statusSummary?.[statusKey] || 0;
               const isSelected = selectedStatuses.includes(statusKey);
@@ -1900,46 +1900,47 @@ export function LeadManagement() {
                     setCurrentPage(1); // Reset to first page
                   }}
                   className={cn(
-                    "flex flex-col p-3 rounded-md border transition-all cursor-pointer hover:shadow-md",
+                    "flex flex-col p-2 rounded-md border transition-all cursor-pointer hover:shadow-md",
                     isSelected 
                       ? "bg-primary text-primary-foreground border-primary shadow-sm" 
                       : "bg-background hover:bg-accent"
                   )}
                 >
                   <span className={cn(
-                    "text-2xl font-bold",
+                    "text-lg font-bold",
                     isSelected ? "text-primary-foreground" : "text-primary"
                   )}>{count}</span>
                   <span className={cn(
-                    "text-sm",
+                    "text-xs leading-tight",
                     isSelected ? "text-primary-foreground/80" : "text-muted-foreground"
                   )}>{statusLabel}</span>
                 </button>
               );
             })}
           </div>
-          <div className="mt-3 pt-3 border-t flex justify-between items-center">
-            <div className="flex items-center gap-4">
+          <div className="mt-2 pt-2 border-t flex justify-between items-center text-xs">
+            <div className="flex items-center gap-3">
               <div>
-                <span className="text-sm font-medium">Total Active Leads: </span>
-                <span className="text-lg font-bold text-primary">{leads?.length || 0}</span>
+                <span className="font-medium">Total Active: </span>
+                <span className="font-bold text-primary">{leads?.length || 0}</span>
               </div>
               {selectedStatuses.length > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
+                  className="h-6 text-xs px-2"
                   onClick={() => {
                     setSelectedStatuses([]);
                     setCurrentPage(1);
                   }}
                 >
-                  Clear Filters ({selectedStatuses.length})
+                  Clear ({selectedStatuses.length})
                 </Button>
               )}
             </div>
             <div>
-              <span className="text-sm font-medium">Hibernation: </span>
-              <span className="text-lg font-bold text-orange-500">{hibernationLeads?.length || 0}</span>
+              <span className="font-medium">Hibernation: </span>
+              <span className="font-bold text-orange-500">{hibernationLeads?.length || 0}</span>
             </div>
           </div>
         </div>
