@@ -47,24 +47,6 @@ export function LoginForm() {
     }
   };
 
-  const handleGuestLogin = async () => {
-    setIsLoading(true);
-    
-    try {
-      const { error } = await signIn('guest@example.com', 'Guest123!');
-
-      if (error) {
-        toast({
-          title: 'Guest login failed',
-          description: 'Unable to sign in as guest. Please contact administrator.',
-          variant: 'destructive',
-        });
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
@@ -93,16 +75,6 @@ export function LoginForm() {
 
       <Button type="submit" className="w-full" disabled={isLoading}>
         {isLoading ? 'Signing in...' : 'Sign In'}
-      </Button>
-
-      <Button 
-        type="button" 
-        variant="outline" 
-        className="w-full" 
-        onClick={handleGuestLogin}
-        disabled={isLoading}
-      >
-        Enter as Guest
       </Button>
     </form>
   );

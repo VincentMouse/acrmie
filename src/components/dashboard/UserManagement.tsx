@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { UserPlus, Pencil } from 'lucide-react';
 import { z } from 'zod';
+import { CSVUserUpload } from './CSVUserUpload';
 
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin' },
@@ -192,7 +193,9 @@ export function UserManagement() {
           </p>
         </div>
         
-        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <div className="flex gap-2">
+          <CSVUserUpload />
+          <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button>
               <UserPlus className="w-4 h-4 mr-2" />
@@ -266,6 +269,7 @@ export function UserManagement() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="rounded-md border">
