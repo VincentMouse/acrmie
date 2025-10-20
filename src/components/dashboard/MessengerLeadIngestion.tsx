@@ -202,7 +202,7 @@ export function MessengerLeadIngestion() {
 
       const leadIds = leads.map(l => l.id);
 
-      // Find appointments for these leads
+      // Find ALL appointments for these leads (not just the most recent)
       const { data: appointments, error: appointmentsError } = await supabase
         .from('appointments')
         .select(`
@@ -217,18 +217,37 @@ export function MessengerLeadIngestion() {
           leads!appointments_lead_id_fkey(first_name, last_name, phone)
         `)
         .in('lead_id', leadIds)
-        .order('appointment_date', { ascending: false })
-        .limit(1);
+        .order('appointment_date', { ascending: false });
 
       if (appointmentsError) throw appointmentsError;
       
       if (appointments && appointments.length > 0) {
-        const appointment = appointments[0];
-        return {
-          ...appointment,
-          branch_name: appointment.branches?.name || 'Unknown',
-          lead: appointment.leads || { first_name: '', last_name: '', phone }
-        };
+        const today = new Date();
+        
+        // First check for any FUTURE appointments
+        const futureAppointment = appointments.find(apt => new Date(apt.appointment_date) > today);
+        if (futureAppointment) {
+          return {
+            ...futureAppointment,
+            branch_name: futureAppointment.branches?.name || 'Unknown',
+            lead: futureAppointment.leads || { first_name: '', last_name: '', phone }
+          };
+        }
+        
+        // If no future appointments, check for recent past appointments (< 7 days)
+        const recentAppointment = appointments.find(apt => {
+          const aptDate = new Date(apt.appointment_date);
+          const daysPassed = differenceInDays(today, aptDate);
+          return aptDate < today && daysPassed < 7;
+        });
+        
+        if (recentAppointment) {
+          return {
+            ...recentAppointment,
+            branch_name: recentAppointment.branches?.name || 'Unknown',
+            lead: recentAppointment.leads || { first_name: '', last_name: '', phone }
+          };
+        }
       }
       
       return null;
@@ -301,13 +320,22 @@ export function MessengerLeadIngestion() {
           .from('appointments')
           .insert([appointmentData]);
         
-        if (appointmentError) throw appointmentError;
+        if (appointmentError) {
+          // Rollback: Delete the lead if appointment creation fails
+          await supabase.from('leads').delete().eq('id', insertedLead.id);
+          throw new Error(`Failed to create appointment: ${appointmentError.message}`);
+        }
 
         // Update time slot booked count
-        await supabase
+        const { error: slotError } = await supabase
           .from('time_slots')
           .update({ booked_count: (selectedTimeSlot.booked_count || 0) + 1 })
           .eq('id', data.timeSlotId);
+        
+        if (slotError) {
+          console.error('Failed to update time slot count:', slotError);
+          // Don't throw here as appointment is already created
+        }
       }
       
       return { isBooking: leadType === 'booking' };
