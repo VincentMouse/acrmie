@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Phone, Eye, Check, ChevronsUpDown, Search, Filter, Clock } from 'lucide-react';
+import { Calendar, Phone, Eye, Check, ChevronsUpDown, Search, Filter, Clock, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
@@ -36,6 +37,7 @@ export function AppointmentManagement() {
   const [filterConfirmationStatus, setFilterConfirmationStatus] = useState('');
   const [filterRegistrationStatus, setFilterRegistrationStatus] = useState('');
   const [filterBranch, setFilterBranch] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   
   // Schedule appointment modal
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
@@ -989,10 +991,15 @@ export function AppointmentManagement() {
       </div>
 
       {/* Search and Filter Section */}
-      <div className="mb-6 space-y-4">
-        <div className="flex items-center gap-2">
-          <Search className="w-4 h-4 text-muted-foreground" />
-          <h3 className="font-semibold">Search & Filters</h3>
+      <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen} className="mb-6">
+        <div className="flex items-center gap-2 mb-2">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="p-0 h-auto hover:bg-transparent">
+              <Search className="w-4 h-4 text-muted-foreground mr-2" />
+              <h3 className="font-semibold">Search & Filters</h3>
+              <ChevronDown className={cn("w-4 h-4 ml-2 transition-transform", isFilterOpen && "rotate-180")} />
+            </Button>
+          </CollapsibleTrigger>
           {(searchPhone || filterDate || filterAssignedTo || filterConfirmationStatus || filterRegistrationStatus || filterBranch) && (
             <Button
               variant="ghost"
@@ -1011,7 +1018,8 @@ export function AppointmentManagement() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <CollapsibleContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Phone Search */}
           <div className="space-y-2">
             <Label htmlFor="search-phone">Search by Phone</Label>
@@ -1120,11 +1128,12 @@ export function AppointmentManagement() {
           </div>
         </div>
 
-        {/* Results count */}
-        <p className="text-sm text-muted-foreground">
-          Showing {upcomingAppointments?.length || 0} appointment(s)
-        </p>
-      </div>
+          {/* Results count */}
+          <p className="text-sm text-muted-foreground">
+            Showing {upcomingAppointments?.length || 0} appointment(s)
+          </p>
+        </CollapsibleContent>
+      </Collapsible>
 
       <div className="rounded-md border overflow-x-auto">
         <Table>
