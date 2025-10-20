@@ -664,7 +664,7 @@ export function Customers() {
                                               )}
                                             </TableCell>
                                             <TableCell className="text-xs">
-                                              {appointment.revenue ? `$${appointment.revenue}` : '-'}
+                                              {appointment.revenue ? `₱${appointment.revenue}` : '-'}
                                             </TableCell>
                                           </TableRow>
                                         ))}

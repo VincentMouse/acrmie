@@ -138,7 +138,7 @@ export function OnlineSalesReport() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${totalRevenue.toFixed(2)}</div>
+            <div className="text-2xl font-bold">₱{totalRevenue.toFixed(2)}</div>
             <p className="text-xs text-muted-foreground">From completed appointments</p>
           </CardContent>
         </Card>
@@ -237,7 +237,7 @@ export function OnlineSalesReport() {
                         </Badge>
                       )}
                       {apt.revenue && (
-                        <div className="text-sm font-medium">${Number(apt.revenue).toFixed(2)}</div>
+                        <div className="text-sm font-medium">₱{Number(apt.revenue).toFixed(2)}</div>
                       )}
                     </div>
                   </div>

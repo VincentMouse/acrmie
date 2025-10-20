@@ -204,7 +204,7 @@ export function OverallReport() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${overallStats?.totalRevenue.toLocaleString()}
+              ₱{overallStats?.totalRevenue.toLocaleString()}
             </div>
           </CardContent>
         </Card>
