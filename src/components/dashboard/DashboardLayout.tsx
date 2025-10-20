@@ -29,10 +29,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     sales_manager: 'Sales Manager',
     tele_sales: 'Tele Sales',
     customer_service: 'Customer Service',
+    online_sales: 'Online Sales',
     view_only: 'View Only',
   };
 
-  const allPossibleRoles = ['admin', 'sales_manager', 'tele_sales', 'customer_service', 'view_only'];
+  const allPossibleRoles = ['admin', 'sales_manager', 'tele_sales', 'customer_service', 'online_sales', 'view_only'];
 
   return (
     <SidebarProvider>
