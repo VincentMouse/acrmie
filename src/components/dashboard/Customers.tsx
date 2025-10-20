@@ -62,7 +62,8 @@ export function Customers() {
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isTeleSales, isLoading: isRoleLoading } = useUserRole();
+  const { isTeleSales, isCustomerService, isLoading: isRoleLoading } = useUserRole();
+  const requiresPhoneSearch = isTeleSales || isCustomerService;
 
   // Create Customer Modal States
   const [isCreateCustomerModalOpen, setIsCreateCustomerModalOpen] = useState(false);
@@ -90,10 +91,10 @@ export function Customers() {
   const [openConcurrentServiceCombo, setOpenConcurrentServiceCombo] = useState(false);
 
   const { data: customers, isLoading } = useQuery({
-    queryKey: ['customers', searchQuery, isTeleSales],
+    queryKey: ['customers', searchQuery, requiresPhoneSearch],
     queryFn: async () => {
-      // For Tele Sales, only fetch if there's a search query
-      if (isTeleSales && !searchQuery) {
+      // For Tele Sales and Customer Service, only fetch if there's a search query
+      if (requiresPhoneSearch && !searchQuery) {
         return [];
       }
 
@@ -101,8 +102,8 @@ export function Customers() {
         .from('customers')
         .select('*');
 
-      // If tele sales is searching, filter by exact phone match
-      if (isTeleSales && searchQuery) {
+      // If user requires phone search, filter by exact phone match
+      if (requiresPhoneSearch && searchQuery) {
         query = query.eq('phone', searchQuery);
       }
 
@@ -444,7 +445,7 @@ export function Customers() {
         <Badge variant="outline">{customers?.length || 0} Total Customers</Badge>
       </div>
 
-      {isTeleSales && (
+      {requiresPhoneSearch && (
         <div className="mb-6">
           <Label htmlFor="phone-search" className="text-sm font-medium mb-2 block">
             Search Customer by Phone Number
