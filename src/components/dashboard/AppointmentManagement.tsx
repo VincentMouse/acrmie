@@ -118,13 +118,15 @@ export function AppointmentManagement() {
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['appointments', searchPhone, filterDate, filterAssignedTo, filterConfirmationStatus, filterRegistrationStatus, filterBranch],
     queryFn: async () => {
-      // Check if user has online_sales role
+      // Check user roles
       const { data: { user } } = await supabase.auth.getUser();
       const { data: userRoles } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', user?.id || '');
       
+      const isAdmin = userRoles?.some(r => r.role === 'admin') || false;
+      const isSalesManager = userRoles?.some(r => r.role === 'sales_manager') || false;
       const isOnlineSales = userRoles?.some(r => r.role === 'online_sales') || false;
 
       let query = supabase
@@ -136,8 +138,8 @@ export function AppointmentManagement() {
           time_slot:time_slots(slot_date, slot_time)
         `);
 
-      // For online sales users, only show appointments for leads they created
-      if (isOnlineSales && user?.id) {
+      // For online sales users (but not admin/sales manager), only show appointments for leads they created
+      if (isOnlineSales && !isAdmin && !isSalesManager && user?.id) {
         // First get leads created by this user
         const { data: myLeads } = await supabase
           .from('leads')
