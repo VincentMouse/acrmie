@@ -21,7 +21,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, signOut } = useAuth();
-  const { roles, actualRoles } = useUserRole();
+  const { roles, actualRoles, isAdmin } = useUserRole();
   const { viewAsRole, setViewAsRole, isViewingAsRole } = useRoleView();
 
   const roleLabels: Record<string, string> = {
@@ -53,33 +53,39 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   <User className="w-4 h-4" />
                   <div>
                     <div className="font-medium">{user?.email}</div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-                        {isViewingAsRole && <span className="text-primary">Viewing as: </span>}
-                        {roles.map(r => roleLabels[r] || r).join(', ')}
-                        <ChevronDown className="w-3 h-3" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="bg-popover z-50">
-                        <DropdownMenuLabel>View Dashboard As</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem 
-                          onClick={() => setViewAsRole(null)}
-                          className={!isViewingAsRole ? 'bg-muted' : ''}
-                        >
-                          My Actual Role{actualRoles.length > 0 && ` (${actualRoles.map(r => roleLabels[r]).join(', ')})`}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {allPossibleRoles.map((role) => (
+                    {isAdmin ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                          {isViewingAsRole && <span className="text-primary">Viewing as: </span>}
+                          {roles.map(r => roleLabels[r] || r).join(', ')}
+                          <ChevronDown className="w-3 h-3" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="bg-popover z-50">
+                          <DropdownMenuLabel>View Dashboard As</DropdownMenuLabel>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem 
-                            key={role}
-                            onClick={() => setViewAsRole(role as any)}
-                            className={viewAsRole === role ? 'bg-muted' : ''}
+                            onClick={() => setViewAsRole(null)}
+                            className={!isViewingAsRole ? 'bg-muted' : ''}
                           >
-                            {roleLabels[role]}
+                            My Actual Role{actualRoles.length > 0 && ` (${actualRoles.map(r => roleLabels[r]).join(', ')})`}
                           </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <DropdownMenuSeparator />
+                          {allPossibleRoles.map((role) => (
+                            <DropdownMenuItem 
+                              key={role}
+                              onClick={() => setViewAsRole(role as any)}
+                              className={viewAsRole === role ? 'bg-muted' : ''}
+                            >
+                              {roleLabels[role]}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">
+                        {roles.map(r => roleLabels[r] || r).join(', ')}
+                      </div>
+                    )}
                   </div>
                 </div>
                 
