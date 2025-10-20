@@ -84,6 +84,17 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Ensure password_changed is set to false for first login prompt
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .update({ password_changed: false })
+      .eq("id", authData.user.id);
+
+    if (profileError) {
+      console.error("Error updating profile:", profileError);
+      // Don't fail the whole operation for this
+    }
+
     console.log(`User created successfully: ${email} with role ${role}`);
 
     return new Response(

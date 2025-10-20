@@ -49,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string, fullName: string) => {
     const redirectUrl = `${window.location.origin}/dashboard`;
     
-    const { error } = await supabase.auth.signUp({
+    const { error, data } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -59,6 +59,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     });
+
+    // Mark password as changed for self-signup users (they chose their own password)
+    if (!error && data.user) {
+      setTimeout(async () => {
+        await supabase
+          .from('profiles')
+          .update({ password_changed: true })
+          .eq('id', data.user!.id);
+      }, 1000);
+    }
+
     return { error };
   };
 

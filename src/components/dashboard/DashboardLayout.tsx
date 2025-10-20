@@ -1,11 +1,13 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
 import { useRoleView } from '@/hooks/useRoleView';
 import { Button } from '@/components/ui/button';
-import { LogOut, User, ChevronDown } from 'lucide-react';
+import { LogOut, User, ChevronDown, KeyRound } from 'lucide-react';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
+import { ChangePasswordDialog } from '@/components/auth/ChangePasswordDialog';
+import { supabase } from '@/integrations/supabase/client';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +25,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { user, signOut } = useAuth();
   const { roles, actualRoles, isAdmin } = useUserRole();
   const { viewAsRole, setViewAsRole, isViewingAsRole } = useRoleView();
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
 
   const roleLabels: Record<string, string> = {
     admin: 'Admin',
@@ -34,6 +38,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   };
 
   const allPossibleRoles = ['admin', 'sales_manager', 'tele_sales', 'customer_service', 'online_sales', 'view_only'];
+
+  // Check if user needs to change password on first login
+  useEffect(() => {
+    const checkPasswordStatus = async () => {
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('password_changed')
+          .eq('id', user.id)
+          .single();
+
+        if (profile && !profile.password_changed) {
+          setNeedsPasswordChange(true);
+        }
+      }
+    };
+
+    checkPasswordStatus();
+  }, [user]);
 
   return (
     <SidebarProvider>
@@ -49,54 +72,56 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               </div>
               
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="w-4 h-4" />
-                  <div>
-                    <div className="font-medium">{user?.email}</div>
-                    {isAdmin ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="flex items-center gap-2">
+                      <User className="w-4 h-4" />
+                      <div className="text-left">
+                        <div className="text-sm font-medium">{user?.email}</div>
+                        <div className="text-xs text-muted-foreground">
                           {isViewingAsRole && <span className="text-primary">Viewing as: </span>}
                           {roles.map(r => roleLabels[r] || r).join(', ')}
-                          <ChevronDown className="w-3 h-3" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="bg-popover z-50">
-                          <DropdownMenuLabel>View Dashboard As</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem 
-                            onClick={() => setViewAsRole(null)}
-                            className={!isViewingAsRole ? 'bg-muted' : ''}
-                          >
-                            My Actual Role{actualRoles.length > 0 && ` (${actualRoles.map(r => roleLabels[r]).join(', ')})`}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {allPossibleRoles.map((role) => (
-                            <DropdownMenuItem 
-                              key={role}
-                              onClick={() => setViewAsRole(role as any)}
-                              className={viewAsRole === role ? 'bg-muted' : ''}
-                            >
-                              {roleLabels[role]}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : (
-                      <div className="text-xs text-muted-foreground">
-                        {roles.map(r => roleLabels[r] || r).join(', ')}
+                        </div>
                       </div>
+                      <ChevronDown className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => setIsChangePasswordOpen(true)}>
+                      <KeyRound className="w-4 h-4 mr-2" />
+                      Change Password
+                    </DropdownMenuItem>
+                    {isAdmin && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>View Dashboard As</DropdownMenuLabel>
+                        <DropdownMenuItem 
+                          onClick={() => setViewAsRole(null)}
+                          className={!isViewingAsRole ? 'bg-muted' : ''}
+                        >
+                          My Actual Role{actualRoles.length > 0 && ` (${actualRoles.map(r => roleLabels[r]).join(', ')})`}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        {allPossibleRoles.map((role) => (
+                          <DropdownMenuItem 
+                            key={role}
+                            onClick={() => setViewAsRole(role as any)}
+                            className={viewAsRole === role ? 'bg-muted' : ''}
+                          >
+                            {roleLabels[role]}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
                     )}
-                  </div>
-                </div>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={signOut}
-                >
-                  <LogOut className="w-4 h-4 mr-2" />
-                  Sign Out
-                </Button>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={signOut}>
+                      <LogOut className="w-4 h-4 mr-2" />
+                      Sign Out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </header>
@@ -106,6 +131,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </main>
         </div>
       </div>
+
+      {/* Password change dialogs */}
+      <ChangePasswordDialog 
+        open={needsPasswordChange || isChangePasswordOpen} 
+        onOpenChange={(open) => {
+          setIsChangePasswordOpen(open);
+          if (!open && needsPasswordChange) {
+            setNeedsPasswordChange(false);
+          }
+        }}
+        isFirstLogin={needsPasswordChange}
+      />
     </SidebarProvider>
   );
 }
