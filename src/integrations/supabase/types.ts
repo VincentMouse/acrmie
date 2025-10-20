@@ -670,6 +670,7 @@ export type Database = {
         | "tele_sales"
         | "customer_service"
         | "view_only"
+        | "online_sales"
       lead_status:
         | "L0-Fresh Lead"
         | "L1-Call back"
@@ -817,6 +818,7 @@ export const Constants = {
         "tele_sales",
         "customer_service",
         "view_only",
+        "online_sales",
       ],
       lead_status: [
         "L0-Fresh Lead",

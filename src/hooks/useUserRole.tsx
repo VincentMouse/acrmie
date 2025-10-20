@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useRoleView } from './useRoleView';
 
-export type UserRole = 'admin' | 'sales_manager' | 'tele_sales' | 'customer_service' | 'view_only';
+export type UserRole = 'admin' | 'sales_manager' | 'tele_sales' | 'customer_service' | 'online_sales' | 'view_only';
 
 export function useUserRole() {
   const { user } = useAuth();
@@ -34,6 +34,7 @@ export function useUserRole() {
   const isSalesManager = hasRole('sales_manager');
   const isTeleSales = hasRole('tele_sales');
   const isCustomerService = hasRole('customer_service');
+  const isOnlineSales = hasRole('online_sales');
   const isViewOnly = hasRole('view_only');
 
   return {
@@ -44,6 +45,7 @@ export function useUserRole() {
     isSalesManager,
     isTeleSales,
     isCustomerService,
+    isOnlineSales,
     isViewOnly,
     isLoading,
   };

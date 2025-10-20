@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 
-type RoleView = 'admin' | 'sales_manager' | 'tele_sales' | 'customer_service' | 'view_only' | null;
+type RoleView = 'admin' | 'sales_manager' | 'tele_sales' | 'customer_service' | 'online_sales' | 'view_only' | null;
 
 interface RoleViewContextType {
   viewAsRole: RoleView;

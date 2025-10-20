@@ -18,6 +18,7 @@ const ROLE_OPTIONS = [
   { value: 'sales_manager', label: 'Sales Manager' },
   { value: 'tele_sales', label: 'Tele Sales' },
   { value: 'customer_service', label: 'Customer Service' },
+  { value: 'online_sales', label: 'Online Sales' },
   { value: 'view_only', label: 'View Only' },
 ];
 
@@ -25,7 +26,7 @@ const userSchema = z.object({
   email: z.string().trim().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   fullName: z.string().trim().min(2, 'Full name must be at least 2 characters'),
-  role: z.enum(['admin', 'sales_manager', 'tele_sales', 'customer_service', 'view_only']),
+  role: z.enum(['admin', 'sales_manager', 'tele_sales', 'customer_service', 'online_sales', 'view_only']),
 });
 
 export function UserManagement() {

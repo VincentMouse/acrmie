@@ -4,6 +4,7 @@ import { CustomerServiceReport } from './reports/CustomerServiceReport';
 import { MarketingReport } from './reports/MarketingReport';
 import { OverallReport } from './reports/OverallReport';
 import { AgentsActivityReport } from './reports/AgentsActivityReport';
+import { OnlineSalesReport } from './reports/OnlineSalesReport';
 
 export function Reports() {
   const { reportType } = useParams<{ reportType: string }>();
@@ -14,6 +15,7 @@ export function Reports() {
     'customer-service': { component: <CustomerServiceReport />, title: 'Customer Service Report' },
     'marketing': { component: <MarketingReport />, title: 'Marketing Report' },
     'agents-activity': { component: <AgentsActivityReport />, title: 'Agents Activity' },
+    'online-sales': { component: <OnlineSalesReport />, title: 'Online Sales Report' },
   };
 
   if (!reportType || !reportComponents[reportType]) {

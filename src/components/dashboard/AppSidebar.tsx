@@ -24,7 +24,7 @@ import {
 export function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
-  const { isAdmin, isSalesManager, isTeleSales, isCustomerService, isViewOnly } = useUserRole();
+  const { isAdmin, isSalesManager, isTeleSales, isCustomerService, isOnlineSales, isViewOnly } = useUserRole();
   
   const isCollapsed = state === 'collapsed';
   
@@ -32,7 +32,7 @@ export function AppSidebar() {
     isActive ? 'bg-muted text-primary font-medium' : 'hover:bg-muted/50';
 
   const menuItems = [
-    { title: 'Lead Ingestion', url: '/dashboard/ingestion', icon: UserPlus, show: isAdmin || isSalesManager },
+    { title: 'Lead Ingestion', url: '/dashboard/ingestion', icon: UserPlus, show: isAdmin || isSalesManager || isOnlineSales },
     { title: 'Leads Management', url: '/dashboard/leads', icon: FileText, show: isAdmin || isSalesManager || isViewOnly },
     { title: 'My Assigned Leads', url: '/dashboard/lead-management', icon: FileText, show: isAdmin || isTeleSales },
     { title: 'Appointments', url: '/dashboard/appointments', icon: Calendar, show: isTeleSales || isCustomerService || isAdmin || isSalesManager || isViewOnly },
@@ -47,10 +47,11 @@ export function AppSidebar() {
     { title: 'Customer Service', url: '/dashboard/reports/customer-service', icon: HeadphonesIcon },
     { title: 'Marketing', url: '/dashboard/reports/marketing', icon: TrendingUp },
     { title: 'Agents Activity', url: '/dashboard/reports/agents-activity', icon: Activity },
+    { title: 'Online Sales', url: '/dashboard/reports/online-sales', icon: UserPlus, show: isOnlineSales || isAdmin || isSalesManager },
   ];
 
   const visibleItems = menuItems.filter(item => item.show);
-  const showReports = isAdmin || isSalesManager;
+  const showReports = isAdmin || isSalesManager || isOnlineSales;
   const isReportsActive = location.pathname.startsWith('/dashboard/reports');
 
   return (
@@ -90,7 +91,9 @@ export function AppSidebar() {
                     {!isCollapsed && (
                       <CollapsibleContent>
                         <SidebarMenuSub>
-                          {reportSubItems.map((subItem) => (
+                          {reportSubItems
+                            .filter(subItem => !('show' in subItem) || subItem.show)
+                            .map((subItem) => (
                             <SidebarMenuSubItem key={subItem.title}>
                               <SidebarMenuSubButton asChild>
                                 <NavLink to={subItem.url} className={getNavCls}>
