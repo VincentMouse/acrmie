@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Clock, Settings, Phone, User, CalendarIcon, Trash2, Search, Check, ChevronsUpDown, Timer } from 'lucide-react';
+import { Clock, Settings, Phone, User, CalendarIcon, Trash2, Search, Check, ChevronsUpDown, Timer, Pencil } from 'lucide-react';
+import { LeadEditDialog } from './LeadEditDialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { format, setHours, setMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -176,6 +177,10 @@ export function LeadManagement() {
   const [openSuggestedServiceCombo, setOpenSuggestedServiceCombo] = useState(false);
   const [openAdditionalServiceCombo, setOpenAdditionalServiceCombo] = useState(false);
   const [openConcurrentServiceCombo, setOpenConcurrentServiceCombo] = useState(false);
+  
+  // Edit dialog state
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingLead, setEditingLead] = useState<any>(null);
 
   // Fetch lead history for the current lead
   const { data: leadHistory } = useQuery({
@@ -294,7 +299,8 @@ export function LeadManagement() {
         .select(`
           *,
           funnel:funnels(name),
-          assigned:profiles!leads_assigned_to_fkey(full_name)
+          assigned:profiles!leads_assigned_to_fkey(full_name),
+          creator:profiles!leads_created_by_fkey(full_name)
         `)
         .order('created_at', { ascending: false });
 
@@ -584,6 +590,30 @@ export function LeadManagement() {
     },
     onError: (error: any) => {
       setShowNoLeadsDialog(true);
+    },
+  });
+
+  const updateLeadMutation = useMutation({
+    mutationFn: async ({ leadId, data }: { leadId: string; data: any }) => {
+      const { error } = await supabase
+        .from('leads')
+        .update(data)
+        .eq('id', leadId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast({ title: 'Lead updated successfully' });
+      setIsEditDialogOpen(false);
+      setEditingLead(null);
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Failed to update lead', 
+        description: error.message,
+        variant: 'destructive' 
+      });
     },
   });
 
@@ -1878,9 +1908,12 @@ export function LeadManagement() {
               <TableHead>Phone</TableHead>
               <TableHead>Service/Product</TableHead>
               {!isLeadManagementPage && <TableHead>Status</TableHead>}
+              {!isLeadManagementPage && <TableHead>Marketer</TableHead>}
+              {!isLeadManagementPage && <TableHead>Online Sales</TableHead>}
               {!isLeadManagementPage && <TableHead>Assigned To</TableHead>}
               {isLeadManagementPage && <TableHead>Time Remaining</TableHead>}
               {isLeadManagementPage && <TableHead>Actions</TableHead>}
+              {!isLeadManagementPage && isAdmin && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1922,26 +1955,14 @@ export function LeadManagement() {
                 <TableCell>{lead.service_product || '-'}</TableCell>
                 {!isLeadManagementPage && (
                   <TableCell>
-                    {(isTeleSales || isAdmin || isSalesManager) ? (
-                      <Select
-                        value={lead.status}
-                        onValueChange={(value) => 
-                          updateStatusMutation.mutate({ leadId: lead.id, status: value })
-                        }
-                      >
-                        <SelectTrigger className="w-48">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                            <SelectItem key={value} value={value}>{label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Badge>{STATUS_LABELS[lead.status as keyof typeof STATUS_LABELS]}</Badge>
-                    )}
+                    <Badge>{STATUS_LABELS[lead.status as keyof typeof STATUS_LABELS]}</Badge>
                   </TableCell>
+                )}
+                {!isLeadManagementPage && (
+                  <TableCell>{lead.marketer_name || '-'}</TableCell>
+                )}
+                {!isLeadManagementPage && (
+                  <TableCell>{lead.creator?.full_name || '-'}</TableCell>
                 )}
                 {!isLeadManagementPage && (
                   <TableCell>
@@ -1996,6 +2017,20 @@ export function LeadManagement() {
                         Call
                       </Button>
                     )}
+                  </TableCell>
+                )}
+                {!isLeadManagementPage && isAdmin && (
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setEditingLead(lead);
+                        setIsEditDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 )}
               </TableRow>
@@ -2270,6 +2305,18 @@ export function LeadManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Lead Edit Dialog */}
+      <LeadEditDialog
+        isOpen={isEditDialogOpen}
+        onClose={() => {
+          setIsEditDialogOpen(false);
+          setEditingLead(null);
+        }}
+        onSave={(data) => updateLeadMutation.mutate({ leadId: editingLead.id, data })}
+        lead={editingLead}
+        isSaving={updateLeadMutation.isPending}
+      />
     </div>
   );
 }
