@@ -15,8 +15,10 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Plus, CalendarIcon, Check, ChevronsUpDown } from 'lucide-react';
 import { z } from 'zod';
 import { validatePhoneNumber } from '@/lib/phoneValidation';
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { DuplicateLeadDialog } from './DuplicateLeadDialog';
+import { DuplicateBookingDialog } from './DuplicateBookingDialog';
 
 const newLeadSchema = z.object({
   phone: z.string().trim().min(10, 'Phone must be at least 10 digits'),
@@ -62,6 +64,13 @@ export function MessengerLeadIngestion() {
   const [appointmentDate, setAppointmentDate] = useState<Date | undefined>();
   const [openServiceCombo, setOpenServiceCombo] = useState(false);
   const [openMarketerCombo, setOpenMarketerCombo] = useState(false);
+  const [showDuplicateLeadDialog, setShowDuplicateLeadDialog] = useState(false);
+  const [showDuplicateBookingDialog, setShowDuplicateBookingDialog] = useState(false);
+  const [duplicateLeadInfo, setDuplicateLeadInfo] = useState<any>(null);
+  const [duplicateBookingInfo, setDuplicateBookingInfo] = useState<any>(null);
+  const [canProceedWithBooking, setCanProceedWithBooking] = useState(false);
+  const [daysPassedSinceAppointment, setDaysPassedSinceAppointment] = useState(0);
+  const [pendingSubmitData, setPendingSubmitData] = useState<any>(null);
 
   const { data: branches } = useQuery({
     queryKey: ['branches'],
@@ -140,16 +149,89 @@ export function MessengerLeadIngestion() {
     setFormData(prev => ({ ...prev, timeSlotId: '' }));
   }, [appointmentDate]);
 
-  const checkDuplicateMutation = useMutation({
+  const checkDuplicateLeadMutation = useMutation({
     mutationFn: async (phone: string) => {
       const { data, error } = await supabase
         .from('leads')
-        .select('id, first_name, last_name, phone')
+        .select(`
+          id,
+          first_name,
+          last_name,
+          phone,
+          status,
+          created_at,
+          processed_at,
+          created_by,
+          created_by_profile:profiles!leads_created_by_fkey(full_name)
+        `)
         .eq('phone', phone)
+        .order('created_at', { ascending: false })
         .limit(1);
 
       if (error) throw error;
-      return data;
+      
+      if (data && data.length > 0) {
+        // Get the role of the creator
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', data[0].created_by)
+          .limit(1)
+          .single();
+        
+        return {
+          ...data[0],
+          created_by_role: roleData?.role || null
+        };
+      }
+      
+      return null;
+    },
+  });
+
+  const checkDuplicateBookingMutation = useMutation({
+    mutationFn: async (phone: string) => {
+      // First find leads with this phone
+      const { data: leads, error: leadsError } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('phone', phone);
+
+      if (leadsError) throw leadsError;
+      if (!leads || leads.length === 0) return null;
+
+      const leadIds = leads.map(l => l.id);
+
+      // Find appointments for these leads
+      const { data: appointments, error: appointmentsError } = await supabase
+        .from('appointments')
+        .select(`
+          id,
+          appointment_date,
+          service_product,
+          confirmation_status,
+          check_in_status,
+          branch_id,
+          branches!appointments_branch_id_fkey(name),
+          lead_id,
+          leads!appointments_lead_id_fkey(first_name, last_name, phone)
+        `)
+        .in('lead_id', leadIds)
+        .order('appointment_date', { ascending: false })
+        .limit(1);
+
+      if (appointmentsError) throw appointmentsError;
+      
+      if (appointments && appointments.length > 0) {
+        const appointment = appointments[0];
+        return {
+          ...appointment,
+          branch_name: appointment.branches?.name || 'Unknown',
+          lead: appointment.leads || { first_name: '', last_name: '', phone }
+        };
+      }
+      
+      return null;
     },
   });
 
@@ -163,9 +245,6 @@ export function MessengerLeadIngestion() {
       if (!phoneValidation.isValid) {
         throw new Error(`Invalid phone number: ${phoneValidation.error}`);
       }
-
-      // Check for duplicates using normalized phone
-      const duplicates = await checkDuplicateMutation.mutateAsync(phoneValidation.normalized);
       
       const [firstName, ...lastNameParts] = data.customerName.trim().split(' ');
       const lastName = lastNameParts.join(' ') || firstName;
@@ -188,8 +267,8 @@ export function MessengerLeadIngestion() {
         assigned_to: leadType === 'booking' ? user.id : null,
         assigned_at: leadType === 'booking' ? new Date().toISOString() : null,
         funnel_id: null,
-        is_duplicate: duplicates && duplicates.length > 0,
-        duplicate_of: duplicates && duplicates.length > 0 ? duplicates[0].id : null,
+        is_duplicate: data.isDuplicate || false,
+        duplicate_of: data.duplicateLeadId || null,
       };
 
       const { data: insertedLead, error: leadError } = await supabase
@@ -231,27 +310,19 @@ export function MessengerLeadIngestion() {
           .eq('id', data.timeSlotId);
       }
       
-      return { isDuplicate: duplicates && duplicates.length > 0, duplicateOf: duplicates?.[0], isBooking: leadType === 'booking' };
+      return { isBooking: leadType === 'booking' };
     },
-    onSuccess: ({ isDuplicate, duplicateOf, isBooking }) => {
+    onSuccess: ({ isBooking }) => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       if (isBooking) {
         queryClient.invalidateQueries({ queryKey: ['appointments'] });
         queryClient.invalidateQueries({ queryKey: ['time-slots'] });
       }
       
-      if (isDuplicate && duplicateOf) {
-        toast({
-          title: `Messenger ${isBooking ? 'booking' : 'lead'} created with duplicate flag`,
-          description: `This phone number matches existing lead: ${duplicateOf.first_name} ${duplicateOf.last_name}`,
-          variant: 'destructive',
-        });
-      } else {
-        toast({ 
-          title: `Messenger ${isBooking ? 'booking' : 'lead'} created`,
-          description: isBooking ? 'Lead with appointment has been added' : 'New lead has been added to the pipeline',
-        });
-      }
+      toast({ 
+        title: `Messenger ${isBooking ? 'booking' : 'lead'} created`,
+        description: isBooking ? 'Lead with appointment has been added' : 'New lead has been added to the pipeline',
+      });
       
       setIsOpen(false);
       setFormData({ 
@@ -278,12 +349,65 @@ export function MessengerLeadIngestion() {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
       const schema = leadType === 'booking' ? bookingSchema : newLeadSchema;
       const validated = schema.parse(formData);
+      
+      // Validate and normalize phone
+      const phoneValidation = validatePhoneNumber(validated.phone);
+      if (!phoneValidation.isValid) {
+        toast({
+          title: 'Invalid phone number',
+          description: phoneValidation.error,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Check for duplicates based on lead type
+      if (leadType === 'new_lead') {
+        // Check for duplicate lead
+        const duplicateLead = await checkDuplicateLeadMutation.mutateAsync(phoneValidation.normalized);
+        
+        if (duplicateLead) {
+          setDuplicateLeadInfo(duplicateLead);
+          setPendingSubmitData(validated);
+          setShowDuplicateLeadDialog(true);
+          return;
+        }
+      } else if (leadType === 'booking') {
+        // Check for duplicate booking
+        const duplicateBooking = await checkDuplicateBookingMutation.mutateAsync(phoneValidation.normalized);
+        
+        if (duplicateBooking) {
+          const appointmentDate = new Date(duplicateBooking.appointment_date);
+          const today = new Date();
+          const daysPassed = differenceInDays(today, appointmentDate);
+          
+          if (appointmentDate > today) {
+            // Appointment hasn't happened yet - block creation
+            setDuplicateBookingInfo(duplicateBooking);
+            setCanProceedWithBooking(false);
+            setDaysPassedSinceAppointment(0);
+            setShowDuplicateBookingDialog(true);
+            return;
+          } else if (daysPassed < 7) {
+            // Appointment passed but < 7 days - show warning with option to proceed
+            setDuplicateBookingInfo(duplicateBooking);
+            setCanProceedWithBooking(true);
+            setDaysPassedSinceAppointment(daysPassed);
+            setPendingSubmitData(validated);
+            setShowDuplicateBookingDialog(true);
+            return;
+          }
+          // If > 7 days, proceed without warning
+        }
+      }
+      
+      // No duplicates or duplicates are old enough - proceed with creation
       createLeadMutation.mutate(validated);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -296,16 +420,63 @@ export function MessengerLeadIngestion() {
     }
   };
 
+  const handleProceedWithDuplicateLead = () => {
+    if (pendingSubmitData && duplicateLeadInfo) {
+      createLeadMutation.mutate({
+        ...pendingSubmitData,
+        isDuplicate: true,
+        duplicateLeadId: duplicateLeadInfo.id
+      });
+      setShowDuplicateLeadDialog(false);
+      setDuplicateLeadInfo(null);
+      setPendingSubmitData(null);
+    }
+  };
+
+  const handleProceedWithDuplicateBooking = () => {
+    if (pendingSubmitData) {
+      createLeadMutation.mutate(pendingSubmitData);
+      setShowDuplicateBookingDialog(false);
+      setDuplicateBookingInfo(null);
+      setPendingSubmitData(null);
+    }
+  };
+
   return (
-    <Card className="p-6">
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-2xl font-bold">Messenger Lead Ingestion</h2>
-            <p className="text-muted-foreground mt-1">
-              Add leads from messenger conversations - bookings or new leads.
-            </p>
-          </div>
+    <>
+      <DuplicateLeadDialog
+        isOpen={showDuplicateLeadDialog}
+        onClose={() => {
+          setShowDuplicateLeadDialog(false);
+          setDuplicateLeadInfo(null);
+          setPendingSubmitData(null);
+        }}
+        onProceed={handleProceedWithDuplicateLead}
+        duplicateInfo={duplicateLeadInfo}
+      />
+
+      <DuplicateBookingDialog
+        isOpen={showDuplicateBookingDialog}
+        onClose={() => {
+          setShowDuplicateBookingDialog(false);
+          setDuplicateBookingInfo(null);
+          setPendingSubmitData(null);
+        }}
+        onProceed={canProceedWithBooking ? handleProceedWithDuplicateBooking : undefined}
+        duplicateInfo={duplicateBookingInfo}
+        canProceed={canProceedWithBooking}
+        daysPassedSinceAppointment={daysPassedSinceAppointment}
+      />
+
+      <Card className="p-6">
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold">Messenger Lead Ingestion</h2>
+              <p className="text-muted-foreground mt-1">
+                Add leads from messenger conversations - bookings or new leads.
+              </p>
+            </div>
 
           <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
@@ -594,8 +765,9 @@ export function MessengerLeadIngestion() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+    </>
   );
 }
