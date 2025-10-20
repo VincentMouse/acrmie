@@ -508,7 +508,10 @@ export function AppointmentManagement() {
     mutationFn: async ({ appointmentId, bookingId }: { appointmentId: string; bookingId: string }) => {
       const { error } = await supabase
         .from('appointments')
-        .update({ booking_id: bookingId })
+        .update({ 
+          booking_id: bookingId,
+          pending_reschedule: false // Clear pending reschedule flag
+        })
         .eq('id', appointmentId);
 
       if (error) throw error;
@@ -528,6 +531,35 @@ export function AppointmentManagement() {
       toast({
         title: 'Error',
         description: 'Failed to register appointment',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Confirm new date for rescheduled appointment
+  const confirmNewDateMutation = useMutation({
+    mutationFn: async (appointmentId: string) => {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ pending_reschedule: false })
+        .eq('id', appointmentId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      setIsViewModalOpen(false);
+      setViewAppointment(null);
+      
+      toast({
+        title: 'Date confirmed',
+        description: 'New appointment date has been confirmed with the clinic',
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to confirm appointment date',
         variant: 'destructive',
       });
     },
@@ -1641,7 +1673,62 @@ export function AppointmentManagement() {
 
               <div className="space-y-3 pt-4 border-t">
                 <h3 className="font-semibold text-lg">Clinic Registration</h3>
-                {viewAppointment.booking_id ? (
+                {viewAppointment.pending_reschedule ? (
+                  // Yellow booking - pending reschedule adjustment
+                  <div className="p-4 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-sm text-muted-foreground">Current Booking ID</span>
+                          <p className="font-medium text-lg">{viewAppointment.booking_id}</p>
+                        </div>
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                          Pending Reschedule
+                        </Badge>
+                      </div>
+                      
+                      <div className="text-sm text-muted-foreground">
+                        This appointment was rescheduled after clinic registration. Please either update the booking ID or confirm the new date with the clinic.
+                      </div>
+
+                      <div className="space-y-3 pt-2 border-t">
+                        <div className="space-y-2">
+                          <Label>Update Booking ID</Label>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="Enter new booking ID..."
+                              value={bookingId}
+                              onChange={(e) => setBookingId(e.target.value)}
+                            />
+                            <Button 
+                              onClick={handleRegisterAppointment}
+                              disabled={registerAppointmentMutation.isPending}
+                              variant="default"
+                            >
+                              {registerAppointmentMutation.isPending ? 'Updating...' : 'Update'}
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 border-t"></div>
+                          <span className="text-xs text-muted-foreground">OR</span>
+                          <div className="flex-1 border-t"></div>
+                        </div>
+
+                        <Button 
+                          onClick={() => confirmNewDateMutation.mutate(viewAppointment.id)}
+                          disabled={confirmNewDateMutation.isPending}
+                          variant="outline"
+                          className="w-full"
+                        >
+                          {confirmNewDateMutation.isPending ? 'Confirming...' : 'Confirm New Date with Clinic'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : viewAppointment.booking_id ? (
+                  // Green booking - registered and confirmed
                   <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
                     <div className="flex items-center justify-between">
                       <div>
@@ -1652,6 +1739,7 @@ export function AppointmentManagement() {
                     </div>
                   </div>
                 ) : (
+                  // White booking - not registered yet
                   <div className="space-y-3">
                     <p className="text-sm text-muted-foreground">
                       Register this appointment to the clinic by entering the booking ID
