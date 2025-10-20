@@ -20,7 +20,7 @@ interface DuplicateLeadInfo {
   created_at: string;
   processed_at: string | null;
   created_by_profile: {
-    full_name: string;
+    nickname: string;
   } | null;
   created_by_role: string | null;
 }
@@ -100,7 +100,7 @@ export function DuplicateLeadDialog({
                 
                 <div>
                   <span className="font-semibold">Ingested By: </span>
-                  {duplicateInfo.created_by_profile?.full_name || 'Unknown'}
+                  {duplicateInfo.created_by_profile?.nickname || 'Unknown'}
                   {duplicateInfo.created_by_role && (
                     <Badge 
                       variant={getRoleBadgeVariant(duplicateInfo.created_by_role)} 

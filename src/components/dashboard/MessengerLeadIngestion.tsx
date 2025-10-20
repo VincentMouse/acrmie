@@ -91,7 +91,7 @@ export function MessengerLeadIngestion() {
     queryFn: async () => {
       const { data: userRoles, error: rolesError } = await supabase
         .from('user_roles')
-        .select('user_id, profiles!inner(id, full_name, email)')
+        .select('user_id, profiles!inner(id, nickname, email)')
         .eq('role', 'marketer');
       
       if (rolesError) throw rolesError;
@@ -162,7 +162,7 @@ export function MessengerLeadIngestion() {
           created_at,
           processed_at,
           created_by,
-          created_by_profile:profiles!leads_created_by_fkey(full_name)
+          created_by_profile:profiles!leads_created_by_fkey(nickname)
         `)
         .eq('phone', phone)
         .order('created_at', { ascending: false })
@@ -279,7 +279,7 @@ export function MessengerLeadIngestion() {
         address: data.address || null,
         service_product: selectedService?.name || '',
         campaign_name: data.campaignName || null,
-        marketer_name: marketers?.find(m => m.id === data.marketerId)?.full_name || '',
+        marketer_name: marketers?.find(m => m.id === data.marketerId)?.nickname || '',
         notes: data.onlineSalesNotes || null,
         status: leadType === 'booking' ? 'L6-Appointment set' as const : 'L0-Fresh Lead' as const,
         created_by: user.id,
@@ -562,7 +562,7 @@ export function MessengerLeadIngestion() {
                         className="w-full justify-between"
                       >
                         {formData.marketerId
-                          ? marketers?.find((m) => m.id === formData.marketerId)?.full_name
+                          ? marketers?.find((m) => m.id === formData.marketerId)?.nickname
                           : "Select marketer..."}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
@@ -576,7 +576,7 @@ export function MessengerLeadIngestion() {
                             {marketers?.map((marketer) => (
                               <CommandItem
                                 key={marketer.id}
-                                value={marketer.full_name}
+                                value={marketer.nickname}
                                 onSelect={() => {
                                   setFormData({ ...formData, marketerId: marketer.id });
                                   setOpenMarketerCombo(false);
@@ -588,7 +588,7 @@ export function MessengerLeadIngestion() {
                                     formData.marketerId === marketer.id ? "opacity-100" : "opacity-0"
                                   )}
                                 />
-                                {marketer.full_name}
+                                {marketer.nickname}
                               </CommandItem>
                             ))}
                           </CommandGroup>

@@ -297,8 +297,8 @@ export function LeadManagement() {
         .select(`
           *,
           funnel:funnels(name),
-          assigned:profiles!leads_assigned_to_fkey(full_name),
-          creator:profiles!leads_created_by_fkey(full_name)
+          assigned:profiles!leads_assigned_to_fkey(nickname),
+          creator:profiles!leads_created_by_fkey(nickname)
         `)
         .order('created_at', { ascending: false });
 
@@ -330,7 +330,7 @@ export function LeadManagement() {
         // Get the most recent history entry for each lead
         const { data: historyData } = await supabase
           .from('lead_history')
-          .select('lead_id, changed_by, profiles!lead_history_changed_by_fkey(full_name)')
+          .select('lead_id, changed_by, profiles!lead_history_changed_by_fkey(nickname)')
           .in('lead_id', leadIds)
           .order('created_at', { ascending: false });
 
@@ -338,7 +338,7 @@ export function LeadManagement() {
         const lastProcessorMap = new Map();
         historyData?.forEach(history => {
           if (!lastProcessorMap.has(history.lead_id)) {
-            lastProcessorMap.set(history.lead_id, history.profiles?.full_name);
+            lastProcessorMap.set(history.lead_id, history.profiles?.nickname);
           }
         });
 
@@ -364,7 +364,7 @@ export function LeadManagement() {
         .select(`
           *,
           funnel:funnels(name),
-          assigned:profiles!leads_assigned_to_fkey(full_name)
+          assigned:profiles!leads_assigned_to_fkey(nickname)
         `)
         .eq('status', 'hibernation')
         .order('l1_last_contact_time', { ascending: true });
@@ -405,7 +405,7 @@ export function LeadManagement() {
           .select(`
             *,
             funnel:funnels(name),
-            assigned:profiles!leads_assigned_to_fkey(full_name)
+            assigned:profiles!leads_assigned_to_fkey(nickname)
           `)
           .eq('status', 'hibernation')
           .order('l1_last_contact_time', { ascending: true });
@@ -433,7 +433,7 @@ export function LeadManagement() {
         .select(`
           *,
           funnel:funnels(name),
-          assigned:profiles!leads_assigned_to_fkey(full_name)
+          assigned:profiles!leads_assigned_to_fkey(nickname)
         `)
         .eq('assigned_to', user.id)
         .eq('status', 'L2-Call reschedule')
@@ -457,7 +457,7 @@ export function LeadManagement() {
       
       const { data, error } = await supabase
         .from('leads')
-        .select('assigned_to, profiles!leads_assigned_to_fkey(full_name)')
+        .select('assigned_to, profiles!leads_assigned_to_fkey(nickname)')
         .eq('status', 'L6-Appointment set')
         .gte('processed_at', today.toISOString());
       
@@ -467,7 +467,7 @@ export function LeadManagement() {
       const counts = data.reduce((acc: any, lead: any) => {
         if (lead.assigned_to) {
           const agentId = lead.assigned_to;
-          const agentName = lead.profiles?.full_name || 'Unknown';
+          const agentName = lead.profiles?.nickname || 'Unknown';
           if (!acc[agentId]) {
             acc[agentId] = { name: agentName, count: 0 };
           }
@@ -494,7 +494,7 @@ export function LeadManagement() {
       
       const { data, error } = await supabase
         .from('leads')
-        .select('assigned_to, profiles!leads_assigned_to_fkey(full_name)')
+        .select('assigned_to, profiles!leads_assigned_to_fkey(nickname)')
         .eq('status', 'L6-Appointment set')
         .gte('processed_at', weekStart.toISOString());
       
@@ -504,7 +504,7 @@ export function LeadManagement() {
       const counts = data.reduce((acc: any, lead: any) => {
         if (lead.assigned_to) {
           const agentId = lead.assigned_to;
-          const agentName = lead.profiles?.full_name || 'Unknown';
+          const agentName = lead.profiles?.nickname || 'Unknown';
           if (!acc[agentId]) {
             acc[agentId] = { name: agentName, count: 0 };
           }
@@ -531,7 +531,7 @@ export function LeadManagement() {
       
       const { data: appointments, error } = await supabase
         .from('appointments')
-        .select('revenue, lead_id, leads!appointments_lead_id_fkey(assigned_to, profiles!leads_assigned_to_fkey(full_name))')
+        .select('revenue, lead_id, leads!appointments_lead_id_fkey(assigned_to, profiles!leads_assigned_to_fkey(nickname))')
         .gte('confirmed_at', monthStart.toISOString())
         .not('revenue', 'is', null);
       
@@ -542,7 +542,7 @@ export function LeadManagement() {
         const lead = apt.leads;
         if (lead?.assigned_to && apt.revenue) {
           const agentId = lead.assigned_to;
-          const agentName = lead.profiles?.full_name || 'Unknown';
+          const agentName = lead.profiles?.nickname || 'Unknown';
           if (!acc[agentId]) {
             acc[agentId] = { name: agentName, revenue: 0, l6Count: 0 };
           }
@@ -2007,11 +2007,11 @@ export function LeadManagement() {
                   <TableCell>{lead.marketer_name || '-'}</TableCell>
                 )}
                 {!isLeadManagementPage && (
-                  <TableCell>{lead.creator?.full_name || '-'}</TableCell>
+                  <TableCell>{lead.creator?.nickname || '-'}</TableCell>
                 )}
                 {!isLeadManagementPage && (
                   <TableCell>
-                    {lead.assigned?.full_name || (lead as any).last_processor || 'Unassigned'}
+                    {lead.assigned?.nickname || (lead as any).last_processor || 'Unassigned'}
                   </TableCell>
                 )}
                 {isLeadManagementPage && (

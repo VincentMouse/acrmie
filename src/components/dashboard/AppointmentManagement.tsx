@@ -174,7 +174,7 @@ export function AppointmentManagement() {
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
             .from('profiles')
-            .select('id, full_name')
+            .select('id, nickname')
             .in('id', userIds);
           
           const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
@@ -257,8 +257,8 @@ export function AppointmentManagement() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name')
-        .order('full_name');
+        .select('id, nickname')
+        .order('nickname');
       
       if (error) throw error;
       return data;
@@ -1052,7 +1052,7 @@ export function AppointmentManagement() {
                 <SelectItem value="__all__">All agents</SelectItem>
                 {allUsers?.map((user) => (
                   <SelectItem key={user.id} value={user.id}>
-                    {user.full_name}
+                    {user.nickname}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1176,7 +1176,7 @@ export function AppointmentManagement() {
                       : format(new Date(appointment.appointment_date), 'p')}
                   </TableCell>
                   <TableCell>
-                    {(appointment as any).assigned?.full_name || '-'}
+                    {(appointment as any).assigned?.nickname || '-'}
                   </TableCell>
                   <TableCell>
                     <Badge variant={appointment.confirmation_status === 'confirmed' ? 'default' : 'secondary'}>
@@ -1641,7 +1641,7 @@ export function AppointmentManagement() {
                   </div>
                   <div>
                     <span className="text-sm text-muted-foreground">Assigned To</span>
-                    <p className="font-medium">{viewAppointment.assigned?.full_name || '-'}</p>
+                    <p className="font-medium">{viewAppointment.assigned?.nickname || '-'}</p>
                   </div>
                 </div>
               </div>

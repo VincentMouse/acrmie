@@ -358,7 +358,8 @@ export function UserManagement() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
+              <TableHead>Nickname</TableHead>
+              <TableHead>Full Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Roles</TableHead>
               <TableHead>Status</TableHead>
@@ -369,7 +370,8 @@ export function UserManagement() {
           <TableBody>
             {users?.map((user) => (
               <TableRow key={user.id} className={!user.is_active ? 'opacity-50' : ''}>
-                <TableCell className="font-medium">{user.full_name}</TableCell>
+                <TableCell className="font-medium">{user.nickname}</TableCell>
+                <TableCell>{user.full_name}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
                   <div className="flex gap-2">
@@ -436,7 +438,7 @@ export function UserManagement() {
       <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Roles for {editingUser?.full_name}</DialogTitle>
+            <DialogTitle>Edit Roles for {editingUser?.nickname}</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4">
@@ -485,7 +487,7 @@ export function UserManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete User</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to permanently delete <strong>{deletingUser?.full_name}</strong>? 
+              Are you sure you want to permanently delete <strong>{deletingUser?.nickname}</strong>?
               This action cannot be undone. All user data, roles, and access will be permanently removed.
             </AlertDialogDescription>
           </AlertDialogHeader>

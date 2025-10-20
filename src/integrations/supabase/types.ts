@@ -508,6 +508,7 @@ export type Database = {
           full_name: string
           id: string
           is_active: boolean
+          nickname: string | null
           password_changed: boolean | null
           updated_at: string | null
         }
@@ -517,6 +518,7 @@ export type Database = {
           full_name: string
           id: string
           is_active?: boolean
+          nickname?: string | null
           password_changed?: boolean | null
           updated_at?: string | null
         }
@@ -526,6 +528,7 @@ export type Database = {
           full_name?: string
           id?: string
           is_active?: boolean
+          nickname?: string | null
           password_changed?: boolean | null
           updated_at?: string | null
         }
@@ -650,6 +653,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_nickname: {
+        Args: { full_name: string }
+        Returns: string
+      }
       generate_time_slots_for_branch: {
         Args: { _branch_id: string; _days_ahead?: number }
         Returns: undefined

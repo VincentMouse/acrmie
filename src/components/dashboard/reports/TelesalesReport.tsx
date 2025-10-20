@@ -42,7 +42,7 @@ export function TelesalesReport() {
       // Get all telesales users
       const { data: telesalesUsers } = await supabase
         .from('user_roles')
-        .select('user_id, profiles(full_name, email)')
+        .select('user_id, profiles(nickname, email)')
         .eq('role', 'tele_sales');
 
       if (!telesalesUsers) return [];
@@ -195,7 +195,7 @@ export function TelesalesReport() {
     // Get user profile
     const { data: profile } = await supabase
       .from('profiles')
-      .select('full_name, email')
+      .select('nickname, email')
       .eq('id', userId)
       .single();
 
@@ -206,7 +206,7 @@ export function TelesalesReport() {
 
     return {
       userId,
-      name: profile?.full_name || 'Unknown',
+      name: profile?.nickname || 'Unknown',
       email: profile?.email || '',
       getLeadCount,
       leadsHandled,

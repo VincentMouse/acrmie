@@ -61,7 +61,7 @@ export function CSVLeadReview({ leads, onComplete, onCancel }: CSVLeadReviewProp
         // Check for duplicates using normalized phone
         const { data: duplicates } = await supabase
           .from('leads')
-          .select('id, first_name, last_name, status, updated_at, assigned_to, profiles!leads_assigned_to_fkey(full_name)')
+          .select('id, first_name, last_name, status, updated_at, assigned_to, profiles!leads_assigned_to_fkey(nickname)')
           .eq('phone', phoneValidation.normalized)
           .order('updated_at', { ascending: false })
           .limit(1);
@@ -80,7 +80,7 @@ export function CSVLeadReview({ leads, onComplete, onCancel }: CSVLeadReviewProp
           } : undefined,
           lastProcessed: duplicate ? {
             time: new Date(duplicate.updated_at).toLocaleString(),
-            by: (duplicate.profiles as any)?.full_name || 'Unknown',
+            by: (duplicate.profiles as any)?.nickname || 'Unknown',
             status: duplicate.status
           } : undefined,
           eligible: phoneValidation.isValid, // Only eligible if phone is valid

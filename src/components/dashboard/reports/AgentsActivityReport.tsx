@@ -35,12 +35,12 @@ export function AgentsActivityReport() {
       const userIds = [...new Set(roles.map(r => r.user_id))];
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, full_name')
+        .select('id, nickname')
         .in('id', userIds);
 
       return profiles?.map(p => ({
         userId: p.id,
-        fullName: p.full_name,
+        fullName: p.nickname,
         role: roles.find(r => r.user_id === p.id)?.role || 'tele_sales'
       })) || [];
     }

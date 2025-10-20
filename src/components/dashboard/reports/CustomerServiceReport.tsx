@@ -23,7 +23,7 @@ export function CustomerServiceReport() {
       // Get all customer service users
       const { data: csUsers } = await supabase
         .from('user_roles')
-        .select('user_id, profiles(full_name, email)')
+        .select('user_id, profiles(nickname, email)')
         .eq('role', 'customer_service');
 
       if (!csUsers) return [];
@@ -120,7 +120,7 @@ export function CustomerServiceReport() {
 
           return {
             userId,
-            name: (user.profiles as any)?.full_name || 'Unknown',
+            name: (user.profiles as any)?.nickname || 'Unknown',
             email: (user.profiles as any)?.email || '',
             totalProcessed: totalProcessed || 0,
             confirmed: confirmed || 0,

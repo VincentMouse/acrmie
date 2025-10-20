@@ -19,8 +19,8 @@ export function OnlineSalesReport() {
         .from('leads')
         .select(`
           *,
-          assigned_to_profile:profiles!leads_assigned_to_fkey(full_name),
-          created_by_profile:profiles!leads_created_by_fkey(full_name)
+          assigned_to_profile:profiles!leads_assigned_to_fkey(nickname),
+          created_by_profile:profiles!leads_created_by_fkey(nickname)
         `)
         .eq('created_by', user.id)
         .order('created_at', { ascending: false });
@@ -184,7 +184,7 @@ export function OnlineSalesReport() {
                     <Badge variant={getStatusBadgeVariant(lead.status)}>{lead.status}</Badge>
                     {lead.assigned_to_profile && (
                       <div className="text-xs text-muted-foreground">
-                        Assigned to: {lead.assigned_to_profile.full_name}
+                        Assigned to: {lead.assigned_to_profile.nickname}
                       </div>
                     )}
                   </div>
