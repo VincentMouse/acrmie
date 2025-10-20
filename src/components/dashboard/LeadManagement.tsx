@@ -450,6 +450,119 @@ export function LeadManagement() {
   // Count self-managed L2 leads for current user
   const selfManagedL2Count = followUpLeads?.length || 0;
 
+  // Top agents queries - only on Lead Management page
+  const { data: topAgentToday } = useQuery<{ name: string; count: number } | null>({
+    queryKey: ['top-agent-today'],
+    queryFn: async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const { data, error } = await supabase
+        .from('leads')
+        .select('assigned_to, profiles!leads_assigned_to_fkey(full_name)')
+        .eq('status', 'L6-Appointment set')
+        .gte('processed_at', today.toISOString());
+      
+      if (error) throw error;
+      
+      // Count L6 by agent
+      const counts = data.reduce((acc: any, lead: any) => {
+        if (lead.assigned_to) {
+          const agentId = lead.assigned_to;
+          const agentName = lead.profiles?.full_name || 'Unknown';
+          if (!acc[agentId]) {
+            acc[agentId] = { name: agentName, count: 0 };
+          }
+          acc[agentId].count++;
+        }
+        return acc;
+      }, {});
+      
+      // Get top agent
+      const topAgent = Object.values(counts).sort((a: any, b: any) => b.count - a.count)[0] as { name: string; count: number } | undefined;
+      return topAgent || null;
+    },
+    enabled: isLeadManagementPage,
+  });
+
+  const { data: topAgentWeek } = useQuery<{ name: string; count: number } | null>({
+    queryKey: ['top-agent-week'],
+    queryFn: async () => {
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week (Sunday)
+      weekStart.setHours(0, 0, 0, 0);
+      
+      const { data, error } = await supabase
+        .from('leads')
+        .select('assigned_to, profiles!leads_assigned_to_fkey(full_name)')
+        .eq('status', 'L6-Appointment set')
+        .gte('processed_at', weekStart.toISOString());
+      
+      if (error) throw error;
+      
+      // Count L6 by agent
+      const counts = data.reduce((acc: any, lead: any) => {
+        if (lead.assigned_to) {
+          const agentId = lead.assigned_to;
+          const agentName = lead.profiles?.full_name || 'Unknown';
+          if (!acc[agentId]) {
+            acc[agentId] = { name: agentName, count: 0 };
+          }
+          acc[agentId].count++;
+        }
+        return acc;
+      }, {});
+      
+      // Get top agent
+      const topAgent = Object.values(counts).sort((a: any, b: any) => b.count - a.count)[0] as { name: string; count: number } | undefined;
+      return topAgent || null;
+    },
+    enabled: isLeadManagementPage,
+  });
+
+  const { data: topAgentMonth } = useQuery<{ name: string; revenue: number; l6Count: number; avgRevenue: number } | null>({
+    queryKey: ['top-agent-month'],
+    queryFn: async () => {
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0, 0, 0, 0);
+      
+      const { data: appointments, error } = await supabase
+        .from('appointments')
+        .select('revenue, lead_id, leads!appointments_lead_id_fkey(assigned_to, profiles!leads_assigned_to_fkey(full_name))')
+        .gte('confirmed_at', monthStart.toISOString())
+        .not('revenue', 'is', null);
+      
+      if (error) throw error;
+      
+      // Sum revenue by agent
+      const revenues = appointments.reduce((acc: any, apt: any) => {
+        const lead = apt.leads;
+        if (lead?.assigned_to && apt.revenue) {
+          const agentId = lead.assigned_to;
+          const agentName = lead.profiles?.full_name || 'Unknown';
+          if (!acc[agentId]) {
+            acc[agentId] = { name: agentName, revenue: 0, l6Count: 0 };
+          }
+          acc[agentId].revenue += parseFloat(apt.revenue);
+          acc[agentId].l6Count++;
+        }
+        return acc;
+      }, {});
+      
+      // Calculate revenue per L6 and get top agent
+      const topAgent = Object.values(revenues)
+        .map((agent: any) => ({
+          ...agent,
+          avgRevenue: agent.revenue / agent.l6Count
+        }))
+        .sort((a: any, b: any) => b.avgRevenue - a.avgRevenue)[0] as { name: string; revenue: number; l6Count: number; avgRevenue: number } | undefined;
+      
+      return topAgent || null;
+    },
+    enabled: isLeadManagementPage,
+  });
+
   const assignToMeMutation = useMutation({
     mutationFn: async (leadId: string) => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -1797,6 +1910,74 @@ export function LeadManagement() {
             Wipe All Data
           </Button>
         </div>
+      )}
+
+      {/* Top Agents - Only on Lead Management page */}
+      {isLeadManagementPage && (
+        <Card className="p-6">
+          <h2 className="text-2xl font-bold mb-6">Top Agents</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Today */}
+            <Card className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
+              <CardHeader className="p-0 pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Today</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {topAgentToday ? (
+                  <div>
+                    <p className="text-2xl font-bold text-primary">{topAgentToday.name}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {topAgentToday.count} L6 {topAgentToday.count === 1 ? 'Lead' : 'Leads'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No data yet</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* This Week */}
+            <Card className="p-4 bg-gradient-to-br from-blue-500/5 to-blue-500/10 border-blue-500/20">
+              <CardHeader className="p-0 pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">This Week</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {topAgentWeek ? (
+                  <div>
+                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{topAgentWeek.name}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {topAgentWeek.count} L6 {topAgentWeek.count === 1 ? 'Lead' : 'Leads'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No data yet</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* This Month */}
+            <Card className="p-4 bg-gradient-to-br from-green-500/5 to-green-500/10 border-green-500/20">
+              <CardHeader className="p-0 pb-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">This Month (Revenue/L6)</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {topAgentMonth ? (
+                  <div>
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{topAgentMonth.name}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      ฿{topAgentMonth.avgRevenue.toLocaleString('en-US', { maximumFractionDigits: 0 })} avg revenue
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      ({topAgentMonth.l6Count} L6, ฿{topAgentMonth.revenue.toLocaleString('en-US', { maximumFractionDigits: 0 })} total)
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No data yet</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </Card>
       )}
 
       {/* My Assigned Leads */}
