@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Pencil, UserX, Trash2 } from 'lucide-react';
+import { UserPlus, Pencil, UserX, Trash2, KeyRound } from 'lucide-react';
 import { z } from 'zod';
 import { CSVUserUpload } from './CSVUserUpload';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -235,6 +235,32 @@ export function UserManagement() {
     },
   });
 
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase.functions.invoke('reset-user-password', {
+        body: { userId }
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to reset password');
+      
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Password reset',
+        description: 'Password has been reset to Test123. User will be prompted to change it on next login.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to reset password',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   if (isLoading) {
     return <div className="text-center py-8">Loading users...</div>;
   }
@@ -369,6 +395,15 @@ export function UserManagement() {
                       title="Edit roles"
                     >
                       <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => resetPasswordMutation.mutate(user.id)}
+                      title="Reset password to Test123"
+                      disabled={resetPasswordMutation.isPending}
+                    >
+                      <KeyRound className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="ghost"
