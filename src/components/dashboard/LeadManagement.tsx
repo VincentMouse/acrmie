@@ -15,9 +15,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Clock, Settings, Phone, User, CalendarIcon, Search, Check, ChevronsUpDown, Timer, Pencil } from 'lucide-react';
+import { Clock, Settings, Phone, User, CalendarIcon, Search, Check, ChevronsUpDown, Timer, Pencil, ChevronDown, Filter } from 'lucide-react';
 import { LeadEditDialog } from './LeadEditDialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format, setHours, setMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -203,6 +204,13 @@ export function LeadManagement() {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const leadsPerPage = 10;
   
+  // Filter states
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filterAssignedTo, setFilterAssignedTo] = useState('');
+  const [filterOnlineSales, setFilterOnlineSales] = useState('');
+  const [filterMarketer, setFilterMarketer] = useState('');
+  const [filterServiceProduct, setFilterServiceProduct] = useState('');
+  
   // Auto-unassign specific lead - remove after execution
   useEffect(() => {
     const hasUnassigned = localStorage.getItem('unassigned_9484414883');
@@ -231,6 +239,34 @@ export function LeadManagement() {
       const { data, error } = await supabase
         .from('branches')
         .select('*')
+        .order('name');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch all users for filter dropdowns
+  const { data: allUsers } = useQuery({
+    queryKey: ['all-users'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, nickname')
+        .order('nickname');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch all services/products for filter
+  const { data: allServicesProducts } = useQuery({
+    queryKey: ['all-services-products'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('services_products')
+        .select('id, name')
         .order('name');
       
       if (error) throw error;
@@ -352,6 +388,9 @@ export function LeadManagement() {
       return data;
     },
   });
+
+  // Get unique marketers from leads (computed after leads are fetched)
+  const uniqueMarketers = [...new Set(leads?.map(lead => lead.marketer_name).filter(Boolean))] as string[];
 
   // Query for hibernation leads
   const { data: hibernationLeads, isLoading: isLoadingHibernation } = useQuery({
@@ -1851,30 +1890,166 @@ export function LeadManagement() {
             {isLeadManagementPage ? 'My Assigned Leads' : 'Lead Management'}
           </h2>
           
-          {isLeadManagementPage ? (
-            isTeleSales && (
-              <Button 
-                onClick={() => getLeadMutation.mutate()}
-                disabled={getLeadMutation.isPending || (leads && leads.length > 0)}
-              >
-                Get Lead
-              </Button>
-            )
-          ) : (
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name or phone..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1); // Reset to first page on search
-                }}
-                className="pl-10"
-              />
-            </div>
+          {isLeadManagementPage && isTeleSales && (
+            <Button 
+              onClick={() => getLeadMutation.mutate()}
+              disabled={getLeadMutation.isPending || (leads && leads.length > 0)}
+            >
+              Get Lead
+            </Button>
           )}
         </div>
+
+        {/* Advanced Filters - Only on Lead Management page */}
+        {!isLeadManagementPage && (
+          <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen} className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="p-0 h-auto hover:bg-transparent">
+                  <Filter className="w-4 h-4 text-muted-foreground mr-2" />
+                  <h3 className="font-semibold text-sm">Advanced Filters</h3>
+                  <ChevronDown className={cn("w-4 h-4 ml-2 transition-transform", isFilterOpen && "rotate-180")} />
+                </Button>
+              </CollapsibleTrigger>
+              {(searchQuery || filterAssignedTo || filterOnlineSales || filterMarketer || filterServiceProduct) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setSearchQuery('');
+                    setFilterAssignedTo('');
+                    setFilterOnlineSales('');
+                    setFilterMarketer('');
+                    setFilterServiceProduct('');
+                    setCurrentPage(1);
+                  }}
+                >
+                  Clear All
+                </Button>
+              )}
+            </div>
+
+            <CollapsibleContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Search by name or phone */}
+                <div className="space-y-1">
+                  <Label htmlFor="search-query" className="text-xs">Search Name/Phone</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                    <Input
+                      id="search-query"
+                      placeholder="Name or phone..."
+                      value={searchQuery}
+                      onChange={(e) => {
+                        setSearchQuery(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="pl-7 h-8 text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Assigned To Filter */}
+                <div className="space-y-1">
+                  <Label htmlFor="filter-assigned" className="text-xs">Assigned To</Label>
+                  <Select 
+                    value={filterAssignedTo || "__all__"} 
+                    onValueChange={(val) => {
+                      setFilterAssignedTo(val === "__all__" ? '' : val);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger id="filter-assigned" className="h-8 text-sm">
+                      <SelectValue placeholder="All agents" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All agents</SelectItem>
+                      <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                      {allUsers?.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.nickname}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Online Sales Filter */}
+                <div className="space-y-1">
+                  <Label htmlFor="filter-online-sales" className="text-xs">Online Sales</Label>
+                  <Select 
+                    value={filterOnlineSales || "__all__"} 
+                    onValueChange={(val) => {
+                      setFilterOnlineSales(val === "__all__" ? '' : val);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger id="filter-online-sales" className="h-8 text-sm">
+                      <SelectValue placeholder="All creators" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All creators</SelectItem>
+                      {allUsers?.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.nickname}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Marketer Filter */}
+                <div className="space-y-1">
+                  <Label htmlFor="filter-marketer" className="text-xs">Marketer</Label>
+                  <Select 
+                    value={filterMarketer || "__all__"} 
+                    onValueChange={(val) => {
+                      setFilterMarketer(val === "__all__" ? '' : val);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger id="filter-marketer" className="h-8 text-sm">
+                      <SelectValue placeholder="All marketers" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All marketers</SelectItem>
+                      {uniqueMarketers.map((marketer) => (
+                        <SelectItem key={marketer} value={marketer}>
+                          {marketer}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Service/Product Filter */}
+                <div className="space-y-1">
+                  <Label htmlFor="filter-service" className="text-xs">Service/Product</Label>
+                  <Select 
+                    value={filterServiceProduct || "__all__"} 
+                    onValueChange={(val) => {
+                      setFilterServiceProduct(val === "__all__" ? '' : val);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <SelectTrigger id="filter-service" className="h-8 text-sm">
+                      <SelectValue placeholder="All services" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all__">All services</SelectItem>
+                      {allServicesProducts?.map((service) => (
+                        <SelectItem key={service.id} value={service.name}>
+                          {service.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        )}
 
       {/* Status Summary */}
       {!isLeadManagementPage && (
@@ -1981,6 +2156,30 @@ export function LeadManagement() {
                   if (!selectedStatuses.includes(lead.status)) {
                     return false;
                   }
+                }
+                
+                // Assigned To filter
+                if (filterAssignedTo) {
+                  if (filterAssignedTo === '__unassigned__') {
+                    if (lead.assigned_to !== null) return false;
+                  } else if (lead.assigned_to !== filterAssignedTo) {
+                    return false;
+                  }
+                }
+                
+                // Online Sales (created_by) filter
+                if (filterOnlineSales && lead.created_by !== filterOnlineSales) {
+                  return false;
+                }
+                
+                // Marketer filter
+                if (filterMarketer && lead.marketer_name !== filterMarketer) {
+                  return false;
+                }
+                
+                // Service/Product filter
+                if (filterServiceProduct && lead.service_product !== filterServiceProduct) {
+                  return false;
                 }
                 
                 return true;
@@ -2104,6 +2303,30 @@ export function LeadManagement() {
             if (!selectedStatuses.includes(lead.status)) {
               return false;
             }
+          }
+          
+          // Assigned To filter
+          if (filterAssignedTo) {
+            if (filterAssignedTo === '__unassigned__') {
+              if (lead.assigned_to !== null) return false;
+            } else if (lead.assigned_to !== filterAssignedTo) {
+              return false;
+            }
+          }
+          
+          // Online Sales (created_by) filter
+          if (filterOnlineSales && lead.created_by !== filterOnlineSales) {
+            return false;
+          }
+          
+          // Marketer filter
+          if (filterMarketer && lead.marketer_name !== filterMarketer) {
+            return false;
+          }
+          
+          // Service/Product filter
+          if (filterServiceProduct && lead.service_product !== filterServiceProduct) {
+            return false;
           }
           
           return true;
