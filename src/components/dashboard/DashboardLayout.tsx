@@ -7,6 +7,7 @@ import { LogOut, User, ChevronDown, KeyRound } from 'lucide-react';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
 import { ChangePasswordDialog } from '@/components/auth/ChangePasswordDialog';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { supabase } from '@/integrations/supabase/client';
 import {
   DropdownMenu,
@@ -71,7 +72,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <h1 className="text-2xl font-bold text-primary">Sales Pipeline CRM</h1>
               </div>
               
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="flex items-center gap-2">
