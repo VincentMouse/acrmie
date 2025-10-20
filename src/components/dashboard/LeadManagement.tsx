@@ -2395,16 +2395,18 @@ export function LeadManagement() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Today */}
             <div>
-              <h3 className="text-lg font-semibold mb-3 text-primary">Today (L6 Count)</h3>
+              <h3 className="text-lg font-semibold mb-3 text-primary">Today</h3>
               <div className="space-y-2">
                 {topAgentsToday && topAgentsToday.length > 0 ? (
                   topAgentsToday.map((agent, index) => (
                     <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20">
                       <div className="flex items-center gap-2">
                         <span className="text-lg font-bold text-primary">#{index + 1}</span>
-                        <span className="font-medium">{agent.name}</span>
+                        <div>
+                          <p className="font-medium">{agent.name}</p>
+                          <p className="text-xs text-muted-foreground">{agent.count} L6</p>
+                        </div>
                       </div>
-                      <Badge variant="secondary">{agent.count} L6</Badge>
                     </div>
                   ))
                 ) : (
@@ -2415,16 +2417,18 @@ export function LeadManagement() {
 
             {/* This Week */}
             <div>
-              <h3 className="text-lg font-semibold mb-3 text-blue-600 dark:text-blue-400">This Week (L6 Count)</h3>
+              <h3 className="text-lg font-semibold mb-3 text-blue-600 dark:text-blue-400">This Week</h3>
               <div className="space-y-2">
                 {topAgentsWeek && topAgentsWeek.length > 0 ? (
                   topAgentsWeek.map((agent, index) => (
                     <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
                       <div className="flex items-center gap-2">
                         <span className="text-lg font-bold text-blue-600 dark:text-blue-400">#{index + 1}</span>
-                        <span className="font-medium">{agent.name}</span>
+                        <div>
+                          <p className="font-medium">{agent.name}</p>
+                          <p className="text-xs text-muted-foreground">{agent.count} L6</p>
+                        </div>
                       </div>
-                      <Badge variant="secondary">{agent.count} L6</Badge>
                     </div>
                   ))
                 ) : (
@@ -2435,7 +2439,7 @@ export function LeadManagement() {
 
             {/* This Month */}
             <div>
-              <h3 className="text-lg font-semibold mb-3 text-green-600 dark:text-green-400">This Month (Revenue/L6)</h3>
+              <h3 className="text-lg font-semibold mb-3 text-green-600 dark:text-green-400">This Month</h3>
               <div className="space-y-2">
                 {topAgentsMonth && topAgentsMonth.length > 0 ? (
                   topAgentsMonth.map((agent, index) => (
@@ -2445,13 +2449,10 @@ export function LeadManagement() {
                         <div>
                           <p className="font-medium">{agent.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {agent.l6Count} L6, ฿{agent.revenue.toLocaleString('en-US', { maximumFractionDigits: 0 })} total
+                            {agent.l6Count} L6, ฿{agent.revenue.toLocaleString('en-US', { maximumFractionDigits: 0 })}
                           </p>
                         </div>
                       </div>
-                      <Badge variant="secondary">
-                        ฿{agent.avgRevenue.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                      </Badge>
                     </div>
                   ))
                 ) : (
