@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useUserRole } from '@/hooks/useUserRole';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -41,6 +42,7 @@ const csvLeadSchema = z.object({
 export function LeadIngestion() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isOnlineSales } = useUserRole();
   const [isOpen, setIsOpen] = useState(false);
   const [uploadResults, setUploadResults] = useState<{ success: number; failed: number } | null>(null);
   const [parsedLeads, setParsedLeads] = useState<any[]>([]);
@@ -240,15 +242,17 @@ export function LeadIngestion() {
 
   return (
     <div className="space-y-6">
-      <Card className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-2xl font-bold">New Lead Ingestion</h2>
-            <div className="text-muted-foreground mt-1">
-              <p>Add cold leads manually or upload via CSV spreadsheet.</p>
-              <p>Duplicates will be automatically flagged.</p>
+      {/* Only show cold leads section for non-online-sales roles */}
+      {!isOnlineSales && (
+        <Card className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-2xl font-bold">New Lead Ingestion</h2>
+              <div className="text-muted-foreground mt-1">
+                <p>Add cold leads manually or upload via CSV spreadsheet.</p>
+                <p>Duplicates will be automatically flagged.</p>
+              </div>
             </div>
-          </div>
         
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
@@ -432,6 +436,7 @@ export function LeadIngestion() {
         </Dialog>
       </div>
     </Card>
+      )}
 
     <MessengerLeadIngestion />
     </div>

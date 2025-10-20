@@ -33,22 +33,26 @@ export function AppSidebar() {
 
   const menuItems = [
     { title: 'Lead Ingestion', url: '/dashboard/ingestion', icon: UserPlus, show: isAdmin || isSalesManager || isOnlineSales },
-    { title: 'Leads Management', url: '/dashboard/leads', icon: FileText, show: isAdmin || isSalesManager || isViewOnly },
+    { title: 'Leads Management', url: '/dashboard/leads', icon: FileText, show: isAdmin || isSalesManager || isOnlineSales || isViewOnly },
     { title: 'My Assigned Leads', url: '/dashboard/lead-management', icon: FileText, show: isAdmin || isTeleSales },
-    { title: 'Appointments', url: '/dashboard/appointments', icon: Calendar, show: isTeleSales || isCustomerService || isAdmin || isSalesManager || isViewOnly },
-    { title: 'Customers', url: '/dashboard/customers', icon: Building2, show: true },
+    { title: 'Appointments', url: '/dashboard/appointments', icon: Calendar, show: isTeleSales || isCustomerService || isAdmin || isSalesManager || isOnlineSales || isViewOnly },
+    { title: 'Customers', url: '/dashboard/customers', icon: Building2, show: !isOnlineSales },
     { title: 'Branch Management', url: '/dashboard/branches', icon: Building, show: isAdmin || isSalesManager },
     { title: 'User Management', url: '/dashboard/users', icon: Users, show: isAdmin },
   ];
 
-  const reportSubItems = [
-    { title: 'Overall', url: '/dashboard/reports/overall', icon: BarChart3 },
-    { title: 'Telesales', url: '/dashboard/reports/telesales', icon: Users },
-    { title: 'Customer Service', url: '/dashboard/reports/customer-service', icon: HeadphonesIcon },
-    { title: 'Marketing', url: '/dashboard/reports/marketing', icon: TrendingUp },
-    { title: 'Agents Activity', url: '/dashboard/reports/agents-activity', icon: Activity },
-    { title: 'Online Sales', url: '/dashboard/reports/online-sales', icon: UserPlus, show: isOnlineSales || isAdmin || isSalesManager },
-  ];
+  const reportSubItems = isOnlineSales 
+    ? [
+        { title: 'Online Sales', url: '/dashboard/reports/online-sales', icon: UserPlus },
+      ]
+    : [
+        { title: 'Overall', url: '/dashboard/reports/overall', icon: BarChart3 },
+        { title: 'Telesales', url: '/dashboard/reports/telesales', icon: Users },
+        { title: 'Customer Service', url: '/dashboard/reports/customer-service', icon: HeadphonesIcon },
+        { title: 'Marketing', url: '/dashboard/reports/marketing', icon: TrendingUp },
+        { title: 'Agents Activity', url: '/dashboard/reports/agents-activity', icon: Activity },
+        { title: 'Online Sales', url: '/dashboard/reports/online-sales', icon: UserPlus },
+      ];
 
   const visibleItems = menuItems.filter(item => item.show);
   const showReports = isAdmin || isSalesManager || isOnlineSales;
@@ -91,9 +95,7 @@ export function AppSidebar() {
                     {!isCollapsed && (
                       <CollapsibleContent>
                         <SidebarMenuSub>
-                          {reportSubItems
-                            .filter(subItem => !('show' in subItem) || subItem.show)
-                            .map((subItem) => (
+                          {reportSubItems.map((subItem) => (
                             <SidebarMenuSubItem key={subItem.title}>
                               <SidebarMenuSubButton asChild>
                                 <NavLink to={subItem.url} className={getNavCls}>

@@ -5,9 +5,11 @@ import { MarketingReport } from './reports/MarketingReport';
 import { OverallReport } from './reports/OverallReport';
 import { AgentsActivityReport } from './reports/AgentsActivityReport';
 import { OnlineSalesReport } from './reports/OnlineSalesReport';
+import { useUserRole } from '@/hooks/useUserRole';
 
 export function Reports() {
   const { reportType } = useParams<{ reportType: string }>();
+  const { isOnlineSales } = useUserRole();
 
   const reportComponents: Record<string, { component: JSX.Element; title: string }> = {
     'overall': { component: <OverallReport />, title: 'Overall Report' },
@@ -18,8 +20,9 @@ export function Reports() {
     'online-sales': { component: <OnlineSalesReport />, title: 'Online Sales Report' },
   };
 
+  // Redirect online sales users to their report, others to overall report
   if (!reportType || !reportComponents[reportType]) {
-    return <Navigate to="/dashboard/reports/overall" replace />;
+    return <Navigate to={isOnlineSales ? "/dashboard/reports/online-sales" : "/dashboard/reports/overall"} replace />;
   }
 
   const { component, title } = reportComponents[reportType];
