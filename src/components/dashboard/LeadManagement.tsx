@@ -419,7 +419,7 @@ export function LeadManagement() {
         `)
         .eq('assigned_to', user.id)
         .eq('status', 'L2-Call reschedule')
-        .order('created_at', { ascending: false });
+        .order('cooldown_until', { ascending: true, nullsFirst: false }); // Prioritize by callback time
 
       if (error) throw error;
       return data;
@@ -476,15 +476,30 @@ export function LeadManagement() {
 
       const now = getEffectiveTime().toISOString();
 
-      // Try to get L0 (Fresh Lead) first
+      // HIGHEST PRIORITY: Try to get an L2 reschedule lead where callback time has arrived
       let { data: availableLead } = await supabase
         .from('leads')
         .select('*')
-        .eq('status', 'L0-Fresh Lead')
+        .eq('status', 'L2-Call reschedule')
         .is('assigned_to', null)
-        .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
+        .not('cooldown_until', 'is', null)
+        .lte('cooldown_until', now)
+        .order('cooldown_until', { ascending: true }) // Prioritize earliest callbacks
         .limit(1)
-        .single();
+        .maybeSingle();
+
+      // Try to get L0 (Fresh Lead) if no priority L2
+      if (!availableLead) {
+        const result = await supabase
+          .from('leads')
+          .select('*')
+          .eq('status', 'L0-Fresh Lead')
+          .is('assigned_to', null)
+          .or(`cooldown_until.is.null,cooldown_until.lt.${now}`)
+          .limit(1)
+          .maybeSingle();
+        availableLead = result.data;
+      }
 
       // If no L0, try L1 (No Answer)
       if (!availableLead) {
@@ -606,10 +621,11 @@ export function LeadManagement() {
           updates.assigned_at = null;
         }
 
-        // Set callback datetime
+        // Set callback datetime in cooldown_until for priority system
         if (callbackDate && callbackTime) {
           const [hours, minutes] = callbackTime.split(':');
           const callbackDateTime = setMinutes(setHours(callbackDate, parseInt(hours)), parseInt(minutes));
+          updates.cooldown_until = callbackDateTime.toISOString();
           updates.notes = `${updates.notes} | Callback: ${format(callbackDateTime, 'PPp')}`;
         }
       } else {
