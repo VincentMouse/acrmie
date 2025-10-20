@@ -10,9 +10,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Pencil } from 'lucide-react';
+import { UserPlus, Pencil, UserX, Trash2 } from 'lucide-react';
 import { z } from 'zod';
 import { CSVUserUpload } from './CSVUserUpload';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 const ROLE_OPTIONS = [
   { value: 'admin', label: 'Admin' },
@@ -37,6 +38,7 @@ export function UserManagement() {
   const [isOpen, setIsOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [deletingUser, setDeletingUser] = useState<any>(null);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -179,6 +181,60 @@ export function UserManagement() {
     );
   };
 
+  const toggleUserStatusMutation = useMutation({
+    mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: !isActive })
+        .eq('id', userId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({
+        title: 'User status updated',
+        description: 'User has been successfully updated',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to update user status',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { userId }
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Failed to delete user');
+      
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({
+        title: 'User deleted',
+        description: 'User has been permanently deleted',
+      });
+      setDeletingUser(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to delete user',
+        description: error.message,
+        variant: 'destructive',
+      });
+      setDeletingUser(null);
+    },
+  });
+
   if (isLoading) {
     return <div className="text-center py-8">Loading users...</div>;
   }
@@ -279,13 +335,14 @@ export function UserManagement() {
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Roles</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {users?.map((user) => (
-              <TableRow key={user.id}>
+              <TableRow key={user.id} className={!user.is_active ? 'opacity-50' : ''}>
                 <TableCell className="font-medium">{user.full_name}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
@@ -297,15 +354,43 @@ export function UserManagement() {
                     ))}
                   </div>
                 </TableCell>
+                <TableCell>
+                  <Badge variant={user.is_active ? 'default' : 'destructive'}>
+                    {user.is_active ? 'Active' : 'Disabled'}
+                  </Badge>
+                </TableCell>
                 <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                 <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleEditRoles(user)}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditRoles(user)}
+                      title="Edit roles"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleUserStatusMutation.mutate({ 
+                        userId: user.id, 
+                        isActive: user.is_active 
+                      })}
+                      title={user.is_active ? 'Disable user' : 'Enable user'}
+                    >
+                      <UserX className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeletingUser(user)}
+                      className="text-destructive hover:text-destructive"
+                      title="Delete user"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -359,6 +444,27 @@ export function UserManagement() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete <strong>{deletingUser?.full_name}</strong>? 
+              This action cannot be undone. All user data, roles, and access will be permanently removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteUserMutation.mutate(deletingUser.id)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteUserMutation.isPending ? 'Deleting...' : 'Delete User'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
