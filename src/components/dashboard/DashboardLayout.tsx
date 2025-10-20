@@ -86,7 +86,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       <ChevronDown className="w-4 h-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuContent align="end" className="w-56 bg-popover z-50">
                     <DropdownMenuLabel>My Account</DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => setIsChangePasswordOpen(true)}>
@@ -98,19 +98,27 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         <DropdownMenuSeparator />
                         <DropdownMenuLabel>View Dashboard As</DropdownMenuLabel>
                         <DropdownMenuItem 
-                          onClick={() => setViewAsRole(null)}
-                          className={!isViewingAsRole ? 'bg-muted' : ''}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setViewAsRole(null);
+                          }}
+                          className={!isViewingAsRole ? 'bg-accent font-semibold' : ''}
                         >
-                          My Actual Role{actualRoles.length > 0 && ` (${actualRoles.map(r => roleLabels[r]).join(', ')})`}
+                          ✓ My Actual Role{actualRoles.length > 0 && ` (${actualRoles.map(r => roleLabels[r]).join(', ')})`}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         {allPossibleRoles.map((role) => (
                           <DropdownMenuItem 
                             key={role}
-                            onClick={() => setViewAsRole(role as any)}
-                            className={viewAsRole === role ? 'bg-muted' : ''}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setViewAsRole(role as any);
+                            }}
+                            className={viewAsRole === role ? 'bg-accent font-semibold' : ''}
                           >
-                            {roleLabels[role]}
+                            {viewAsRole === role && '✓ '}{roleLabels[role]}
                           </DropdownMenuItem>
                         ))}
                       </>
