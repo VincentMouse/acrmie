@@ -21,7 +21,7 @@ import { format, setHours, setMinutes } from 'date-fns';
 import { CalendarIcon, Check } from 'lucide-react';
 import { ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { normalizePhoneNumber } from '@/lib/phoneValidation';
+import { normalizePhoneNumber, validatePhoneNumber } from '@/lib/phoneValidation';
 
 type Customer = {
   id: string;
@@ -58,6 +58,7 @@ export function Customers() {
   const [editingEmail, setEditingEmail] = useState<string | null>(null);
   const [emailValue, setEmailValue] = useState('');
   const [phoneSearch, setPhoneSearch] = useState('');
+  const [phoneSearchError, setPhoneSearchError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -114,7 +115,27 @@ export function Customers() {
   });
 
   const handlePhoneSearch = () => {
-    setSearchQuery(phoneSearch.trim());
+    const validation = validatePhoneNumber(phoneSearch);
+    if (!validation.isValid) {
+      setPhoneSearchError(validation.error || 'Invalid phone number');
+      return;
+    }
+    setPhoneSearchError('');
+    setSearchQuery(validation.normalized);
+  };
+
+  const handlePhoneSearchChange = (value: string) => {
+    setPhoneSearch(value);
+    if (value.trim()) {
+      const validation = validatePhoneNumber(value);
+      if (!validation.isValid) {
+        setPhoneSearchError(validation.error || 'Invalid phone number');
+      } else {
+        setPhoneSearchError('');
+      }
+    } else {
+      setPhoneSearchError('');
+    }
   };
 
   const { data: leadsMap } = useQuery({
@@ -429,20 +450,25 @@ export function Customers() {
             Search Customer by Phone Number
           </Label>
           <div className="flex gap-2">
-            <Input
-              id="phone-search"
-              placeholder="Enter exact phone number"
-              value={phoneSearch}
-              onChange={(e) => setPhoneSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handlePhoneSearch()}
-              className="flex-1"
-            />
-            <Button onClick={handlePhoneSearch}>
+            <div className="flex-1">
+              <Input
+                id="phone-search"
+                placeholder="Enter exact phone number (10 digits, starting with 9)"
+                value={phoneSearch}
+                onChange={(e) => handlePhoneSearchChange(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !phoneSearchError && handlePhoneSearch()}
+                className={cn("w-full", phoneSearchError && "border-destructive")}
+              />
+              {phoneSearchError && (
+                <p className="text-sm text-destructive mt-1">{phoneSearchError}</p>
+              )}
+            </div>
+            <Button onClick={handlePhoneSearch} disabled={!!phoneSearchError || !phoneSearch.trim()}>
               <Search className="h-4 w-4 mr-2" />
               Search
             </Button>
           </div>
-          {searchQuery && customers?.length === 0 && (
+          {searchQuery && customers?.length === 0 && !phoneSearchError && (
             <div className="mt-4 p-4 bg-muted/50 rounded-lg border border-dashed">
               <p className="text-sm text-muted-foreground mb-3">No customer found with this phone number.</p>
               <Button 
