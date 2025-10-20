@@ -55,6 +55,7 @@ export function AppointmentManagement() {
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [callAppointment, setCallAppointment] = useState<any>(null);
   const [callStatus, setCallStatus] = useState('');
+  const [originalAppointmentDateTime, setOriginalAppointmentDateTime] = useState('');
   
   // Update modal (post-appointment)
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
@@ -138,9 +139,11 @@ export function AppointmentManagement() {
         query = query.eq('confirmation_status', filterConfirmationStatus);
       }
       if (filterRegistrationStatus === 'registered') {
-        query = query.not('booking_id', 'is', null);
+        query = query.not('booking_id', 'is', null).eq('pending_reschedule', false);
       } else if (filterRegistrationStatus === 'not_registered') {
         query = query.is('booking_id', null);
+      } else if (filterRegistrationStatus === 'pending_reschedule') {
+        query = query.eq('pending_reschedule', true);
       }
       if (filterBranch) {
         query = query.eq('branch_id', filterBranch);
@@ -309,6 +312,8 @@ export function AppointmentManagement() {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
       
       // Initialize editable fields
+      const appointmentDateTime = format(new Date(appointment.appointment_date), 'yyyy-MM-dd') + 'T' + format(new Date(appointment.appointment_date), 'HH:mm');
+      setOriginalAppointmentDateTime(appointmentDateTime);
       setEditableFields({
         customerName: `${appointment.lead?.first_name || ''} ${appointment.lead?.last_name || ''}`.trim(),
         phone: appointment.lead?.phone || '',
@@ -409,18 +414,27 @@ export function AppointmentManagement() {
       // Combine appointment date and time
       const combinedDateTime = `${editableFields.appointmentDate}T${editableFields.appointmentTime}:00`;
       
+      // For C2 (rescheduled), validate that date/time has changed
+      if (status === 'rescheduled') {
+        const newDateTime = `${editableFields.appointmentDate}T${editableFields.appointmentTime}`;
+        if (newDateTime === originalAppointmentDateTime) {
+          throw new Error('SAME_DATE');
+        }
+      }
+      
       const updateData: any = {
-        confirmation_status: status,
+        confirmation_status: status === 'rescheduled' ? 'confirmed' : status, // C2 becomes C6
         processing_by: null,
         processing_at: null,
         appointment_date: combinedDateTime,
         branch_id: editableFields.branchId,
         notes: editableFields.notes,
         service_product: selectedServiceId || editableFields.serviceProduct,
+        pending_reschedule: status === 'rescheduled' && !!callAppointment?.booking_id, // Yellow if registered
       };
 
-      // Set confirmed_at timestamp when confirming an L6 appointment
-      if (status === 'confirmed') {
+      // Set confirmed_at timestamp when confirming
+      if (status === 'confirmed' || status === 'rescheduled') {
         updateData.confirmed_at = getEffectiveTime().toISOString();
       }
 
@@ -472,12 +486,20 @@ export function AppointmentManagement() {
         description: 'Appointment status updated successfully',
       });
     },
-    onError: () => {
-      toast({
-        title: 'Error',
-        description: 'Failed to update appointment status',
-        variant: 'destructive',
-      });
+    onError: (error: any) => {
+      if (error.message === 'SAME_DATE') {
+        toast({
+          title: 'Validation error',
+          description: 'For reschedule, you must select a different date/time than the original appointment',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to update appointment status',
+          variant: 'destructive',
+        });
+      }
     },
   });
 
@@ -646,6 +668,18 @@ export function AppointmentManagement() {
         variant: 'destructive',
       });
       return;
+    }
+
+    // For C2, enforce date/time editing
+    if (callStatus === 'rescheduled') {
+      if (!fieldEditStates.appointmentDate || !fieldEditStates.appointmentTime) {
+        toast({
+          title: 'Validation error',
+          description: 'For reschedule, you must unlock and change the appointment date and time',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     finishCallMutation.mutate({
@@ -1043,6 +1077,7 @@ export function AppointmentManagement() {
                 <SelectItem value="__all__">All appointments</SelectItem>
                 <SelectItem value="registered">Registered</SelectItem>
                 <SelectItem value="not_registered">Not Registered</SelectItem>
+                <SelectItem value="pending_reschedule">Pending Reschedule</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1092,14 +1127,22 @@ export function AppointmentManagement() {
           </TableHeader>
           <TableBody>
             {upcomingAppointments?.map((appointment) => {
-              const isRegistered = !!appointment.booking_id;
+              const isRegistered = !!appointment.booking_id && !appointment.pending_reschedule;
+              const isPendingReschedule = !!appointment.pending_reschedule;
               const isProcessing = !!appointment.processing_by;
               const serviceName = servicesMap.get(appointment.service_product) || appointment.service_product || '-';
+              
+              // Color coding: green = registered, yellow = pending reschedule, white = not registered
+              const rowColor = isPendingReschedule 
+                ? 'bg-yellow-50 dark:bg-yellow-950/20' 
+                : isRegistered 
+                  ? 'bg-green-50 dark:bg-green-950/20' 
+                  : '';
               
               return (
                 <TableRow 
                   key={appointment.id}
-                  className={isRegistered ? 'bg-green-50 dark:bg-green-950/20' : ''}
+                  className={rowColor}
                 >
                   <TableCell className="font-medium">
                     {appointment.lead?.first_name} {appointment.lead?.last_name}
@@ -1185,6 +1228,8 @@ export function AppointmentManagement() {
                               onClick={() => {
                                 // Reopen the modal for the same agent
                                 setCallAppointment(appointment);
+                                const appointmentDateTime = format(new Date(appointment.appointment_date), 'yyyy-MM-dd') + 'T' + format(new Date(appointment.appointment_date), 'HH:mm');
+                                setOriginalAppointmentDateTime(appointmentDateTime);
                                 setEditableFields({
                                   customerName: `${appointment.lead?.first_name || ''} ${appointment.lead?.last_name || ''}`.trim(),
                                   phone: appointment.lead?.phone || '',
@@ -1495,7 +1540,6 @@ export function AppointmentManagement() {
                     <SelectValue placeholder="Select status..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">C0: Pending</SelectItem>
                     <SelectItem value="no_answer">C1: No Answer</SelectItem>
                     <SelectItem value="rescheduled">C2: Appointment reschedule</SelectItem>
                     <SelectItem value="cancelled">C3: Cancel appointment</SelectItem>

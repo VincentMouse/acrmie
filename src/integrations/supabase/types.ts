@@ -66,6 +66,7 @@ export type Database = {
           lead_id: string
           note_from_clinic: string | null
           notes: string | null
+          pending_reschedule: boolean | null
           processing_at: string | null
           processing_by: string | null
           reminder_status: string
@@ -89,6 +90,7 @@ export type Database = {
           lead_id: string
           note_from_clinic?: string | null
           notes?: string | null
+          pending_reschedule?: boolean | null
           processing_at?: string | null
           processing_by?: string | null
           reminder_status?: string
@@ -112,6 +114,7 @@ export type Database = {
           lead_id?: string
           note_from_clinic?: string | null
           notes?: string | null
+          pending_reschedule?: boolean | null
           processing_at?: string | null
           processing_by?: string | null
           reminder_status?: string
