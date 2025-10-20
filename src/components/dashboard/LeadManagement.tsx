@@ -451,8 +451,8 @@ export function LeadManagement() {
   const selfManagedL2Count = followUpLeads?.length || 0;
 
   // Top agents queries - only on Lead Management page
-  const { data: topAgentToday } = useQuery<{ name: string; count: number } | null>({
-    queryKey: ['top-agent-today'],
+  const { data: topAgentsToday } = useQuery<Array<{ name: string; count: number }>>({
+    queryKey: ['top-agents-today'],
     queryFn: async () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -478,15 +478,17 @@ export function LeadManagement() {
         return acc;
       }, {});
       
-      // Get top agent
-      const topAgent = Object.values(counts).sort((a: any, b: any) => b.count - a.count)[0] as { name: string; count: number } | undefined;
-      return topAgent || null;
+      // Get top 5 agents
+      const topAgents = Object.values(counts)
+        .sort((a: any, b: any) => b.count - a.count)
+        .slice(0, 5) as Array<{ name: string; count: number }>;
+      return topAgents;
     },
     enabled: isLeadManagementPage,
   });
 
-  const { data: topAgentWeek } = useQuery<{ name: string; count: number } | null>({
-    queryKey: ['top-agent-week'],
+  const { data: topAgentsWeek } = useQuery<Array<{ name: string; count: number }>>({
+    queryKey: ['top-agents-week'],
     queryFn: async () => {
       const weekStart = new Date();
       weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week (Sunday)
@@ -513,15 +515,17 @@ export function LeadManagement() {
         return acc;
       }, {});
       
-      // Get top agent
-      const topAgent = Object.values(counts).sort((a: any, b: any) => b.count - a.count)[0] as { name: string; count: number } | undefined;
-      return topAgent || null;
+      // Get top 5 agents
+      const topAgents = Object.values(counts)
+        .sort((a: any, b: any) => b.count - a.count)
+        .slice(0, 5) as Array<{ name: string; count: number }>;
+      return topAgents;
     },
     enabled: isLeadManagementPage,
   });
 
-  const { data: topAgentMonth } = useQuery<{ name: string; revenue: number; l6Count: number; avgRevenue: number } | null>({
-    queryKey: ['top-agent-month'],
+  const { data: topAgentsMonth } = useQuery<Array<{ name: string; revenue: number; l6Count: number; avgRevenue: number }>>({
+    queryKey: ['top-agents-month'],
     queryFn: async () => {
       const monthStart = new Date();
       monthStart.setDate(1);
@@ -550,15 +554,16 @@ export function LeadManagement() {
         return acc;
       }, {});
       
-      // Calculate revenue per L6 and get top agent
-      const topAgent = Object.values(revenues)
+      // Calculate revenue per L6 and get top 5 agents
+      const topAgents = Object.values(revenues)
         .map((agent: any) => ({
           ...agent,
           avgRevenue: agent.revenue / agent.l6Count
         }))
-        .sort((a: any, b: any) => b.avgRevenue - a.avgRevenue)[0] as { name: string; revenue: number; l6Count: number; avgRevenue: number } | undefined;
+        .sort((a: any, b: any) => b.avgRevenue - a.avgRevenue)
+        .slice(0, 5) as Array<{ name: string; revenue: number; l6Count: number; avgRevenue: number }>;
       
-      return topAgent || null;
+      return topAgents;
     },
     enabled: isLeadManagementPage,
   });
@@ -1912,74 +1917,6 @@ export function LeadManagement() {
         </div>
       )}
 
-      {/* Top Agents - Only on Lead Management page */}
-      {isLeadManagementPage && (
-        <Card className="p-6">
-          <h2 className="text-2xl font-bold mb-6">Top Agents</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Today */}
-            <Card className="p-4 bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
-              <CardHeader className="p-0 pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Today</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {topAgentToday ? (
-                  <div>
-                    <p className="text-2xl font-bold text-primary">{topAgentToday.name}</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {topAgentToday.count} L6 {topAgentToday.count === 1 ? 'Lead' : 'Leads'}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No data yet</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* This Week */}
-            <Card className="p-4 bg-gradient-to-br from-blue-500/5 to-blue-500/10 border-blue-500/20">
-              <CardHeader className="p-0 pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">This Week</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {topAgentWeek ? (
-                  <div>
-                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{topAgentWeek.name}</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {topAgentWeek.count} L6 {topAgentWeek.count === 1 ? 'Lead' : 'Leads'}
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No data yet</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* This Month */}
-            <Card className="p-4 bg-gradient-to-br from-green-500/5 to-green-500/10 border-green-500/20">
-              <CardHeader className="p-0 pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">This Month (Revenue/L6)</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {topAgentMonth ? (
-                  <div>
-                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{topAgentMonth.name}</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      ฿{topAgentMonth.avgRevenue.toLocaleString('en-US', { maximumFractionDigits: 0 })} avg revenue
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      ({topAgentMonth.l6Count} L6, ฿{topAgentMonth.revenue.toLocaleString('en-US', { maximumFractionDigits: 0 })} total)
-                    </p>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No data yet</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </Card>
-      )}
-
       {/* My Assigned Leads */}
       <Card className="p-6">
         <div className="flex justify-between items-center mb-6">
@@ -2447,6 +2384,81 @@ export function LeadManagement() {
                 )}
               </TableBody>
             </Table>
+          </div>
+        </Card>
+      )}
+
+      {/* Top Agents - Only on Lead Management page */}
+      {isLeadManagementPage && (
+        <Card className="p-6">
+          <h2 className="text-2xl font-bold mb-6">Top Agents</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Today */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 text-primary">Today (L6 Count)</h3>
+              <div className="space-y-2">
+                {topAgentsToday && topAgentsToday.length > 0 ? (
+                  topAgentsToday.map((agent, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-primary">#{index + 1}</span>
+                        <span className="font-medium">{agent.name}</span>
+                      </div>
+                      <Badge variant="secondary">{agent.count} L6</Badge>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">No data yet</p>
+                )}
+              </div>
+            </div>
+
+            {/* This Week */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 text-blue-600 dark:text-blue-400">This Week (L6 Count)</h3>
+              <div className="space-y-2">
+                {topAgentsWeek && topAgentsWeek.length > 0 ? (
+                  topAgentsWeek.map((agent, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-blue-600 dark:text-blue-400">#{index + 1}</span>
+                        <span className="font-medium">{agent.name}</span>
+                      </div>
+                      <Badge variant="secondary">{agent.count} L6</Badge>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">No data yet</p>
+                )}
+              </div>
+            </div>
+
+            {/* This Month */}
+            <div>
+              <h3 className="text-lg font-semibold mb-3 text-green-600 dark:text-green-400">This Month (Revenue/L6)</h3>
+              <div className="space-y-2">
+                {topAgentsMonth && topAgentsMonth.length > 0 ? (
+                  topAgentsMonth.map((agent, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-green-500/5 border border-green-500/20">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold text-green-600 dark:text-green-400">#{index + 1}</span>
+                        <div>
+                          <p className="font-medium">{agent.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {agent.l6Count} L6, ฿{agent.revenue.toLocaleString('en-US', { maximumFractionDigits: 0 })} total
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="secondary">
+                        ฿{agent.avgRevenue.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                      </Badge>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">No data yet</p>
+                )}
+              </div>
+            </div>
           </div>
         </Card>
       )}
