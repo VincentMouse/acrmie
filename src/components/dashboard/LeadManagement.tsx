@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Clock, Settings, Phone, User, CalendarIcon, Trash2, Search, Check, ChevronsUpDown, Timer, Pencil } from 'lucide-react';
+import { Clock, Settings, Phone, User, CalendarIcon, Search, Check, ChevronsUpDown, Timer, Pencil } from 'lucide-react';
 import { LeadEditDialog } from './LeadEditDialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { format, setHours, setMinutes } from 'date-fns';
@@ -36,8 +36,7 @@ const STATUS_LABELS = {
 
 // L1 Time Period helpers
 const getEffectiveTime = (): Date => {
-  const override = localStorage.getItem('timeOverride');
-  return override ? new Date(override) : new Date();
+  return new Date();
 };
 
 const getCurrentTimePeriod = (): number => {
@@ -154,7 +153,6 @@ export function LeadManagement() {
   const [assignTo, setAssignTo] = useState<'self' | 'team'>('self');
   const [callBackIn, setCallBackIn] = useState<string>('');
   const [showNoLeadsDialog, setShowNoLeadsDialog] = useState(false);
-  const [showWipeConfirmDialog, setShowWipeConfirmDialog] = useState(false);
   
   // L6 specific states
   const [customerType, setCustomerType] = useState<string>('');
@@ -896,55 +894,6 @@ export function LeadManagement() {
   });
 
 
-  const wipeAllDataMutation = useMutation({
-    mutationFn: async () => {
-      // Delete in order: lead_history, appointments, leads, customers
-      const { error: historyError } = await supabase
-        .from('lead_history')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
-
-      if (historyError) throw historyError;
-
-      const { error: appointmentsError } = await supabase
-        .from('appointments')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
-
-      if (appointmentsError) throw appointmentsError;
-
-      const { error: leadsError } = await supabase
-        .from('leads')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
-
-      if (leadsError) throw leadsError;
-
-      const { error: customersError } = await supabase
-        .from('customers')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
-
-      if (customersError) throw customersError;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      queryClient.invalidateQueries({ queryKey: ['follow-up-leads'] });
-      setShowWipeConfirmDialog(false);
-      toast({ 
-        title: 'All data wiped', 
-        description: 'All leads, lead history, appointments, and customers have been deleted',
-        variant: 'destructive'
-      });
-    },
-    onError: (error: any) => {
-      toast({ 
-        title: 'Failed to wipe data', 
-        description: error.message, 
-        variant: 'destructive' 
-      });
-    },
-  });
 
 
   // Auto-set call outcome when L2 is selected, and reset when status changes
@@ -1015,16 +964,6 @@ export function LeadManagement() {
     updateAgentStatus();
   }, [isLeadModalOpen, pulledLead]);
 
-  useEffect(() => {
-    const handleTimeOverrideChange = () => {
-      // Invalidate queries to refresh lead data with new effective time
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      queryClient.invalidateQueries({ queryKey: ['follow-up-leads'] });
-    };
-
-    window.addEventListener('timeOverrideChanged', handleTimeOverrideChange);
-    return () => window.removeEventListener('timeOverrideChanged', handleTimeOverrideChange);
-  }, [queryClient]);
 
   // Timer state to force re-render of countdown displays
   const [timerTick, setTimerTick] = useState(0);
@@ -1904,18 +1843,6 @@ export function LeadManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Admin Tools - Only for Admin on Leads page */}
-      {isAdmin && !isLeadManagementPage && (
-        <div className="space-y-4">
-          <Button
-            variant="destructive"
-            onClick={() => setShowWipeConfirmDialog(true)}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Wipe All Data
-          </Button>
-        </div>
-      )}
 
       {/* My Assigned Leads */}
       <Card className="p-6">
@@ -2464,41 +2391,6 @@ export function LeadManagement() {
         </Card>
       )}
 
-      {/* Wipe All Data Confirmation Dialog */}
-      <Dialog open={showWipeConfirmDialog} onOpenChange={setShowWipeConfirmDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>⚠️ Wipe All Data</DialogTitle>
-            <DialogDescription asChild>
-              <div>
-                This will permanently delete all:
-                <ul className="list-disc list-inside mt-2 space-y-1">
-                  <li>Leads</li>
-                  <li>Lead History</li>
-                  <li>Appointments</li>
-                  <li>Customers</li>
-                </ul>
-                <div className="mt-3 font-semibold text-destructive">This action cannot be undone!</div>
-              </div>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowWipeConfirmDialog(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => wipeAllDataMutation.mutate()}
-              disabled={wipeAllDataMutation.isPending}
-            >
-              {wipeAllDataMutation.isPending ? 'Wiping...' : 'Yes, Wipe All Data'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Lead Edit Dialog */}
       <LeadEditDialog
