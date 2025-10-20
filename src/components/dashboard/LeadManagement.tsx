@@ -279,6 +279,14 @@ export function LeadManagement() {
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       
+      // Check if user has online_sales role
+      const { data: userRoles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user?.id || '');
+      
+      const isOnlineSales = userRoles?.some(r => r.role === 'online_sales') || false;
+      
       let query = supabase
         .from('leads')
         .select(`
@@ -288,8 +296,12 @@ export function LeadManagement() {
         `)
         .order('created_at', { ascending: false });
 
+      // For online sales users, only show leads they created
+      if (isOnlineSales && user) {
+        query = query.eq('created_by', user.id);
+      }
       // For Lead Management page, only show leads assigned to current user (excluding L2 - Call Rescheduled and Hibernation)
-      if (isLeadManagementPage && user) {
+      else if (isLeadManagementPage && user) {
         query = query.eq('assigned_to', user.id).neq('status', 'L2-Call reschedule').neq('status', 'hibernation');
       }
 

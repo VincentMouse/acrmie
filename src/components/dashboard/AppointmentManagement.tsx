@@ -118,6 +118,15 @@ export function AppointmentManagement() {
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['appointments', searchPhone, filterDate, filterAssignedTo, filterConfirmationStatus, filterRegistrationStatus, filterBranch],
     queryFn: async () => {
+      // Check if user has online_sales role
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: userRoles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user?.id || '');
+      
+      const isOnlineSales = userRoles?.some(r => r.role === 'online_sales') || false;
+
       let query = supabase
         .from('appointments')
         .select(`
@@ -126,6 +135,24 @@ export function AppointmentManagement() {
           branch:branches(name),
           time_slot:time_slots(slot_date, slot_time)
         `);
+
+      // For online sales users, only show appointments for leads they created
+      if (isOnlineSales && user?.id) {
+        // First get leads created by this user
+        const { data: myLeads } = await supabase
+          .from('leads')
+          .select('id')
+          .eq('created_by', user.id);
+        
+        const leadIds = myLeads?.map(l => l.id) || [];
+        
+        if (leadIds.length > 0) {
+          query = query.in('lead_id', leadIds);
+        } else {
+          // No leads created by this user, return empty
+          return [];
+        }
+      }
 
       // Apply filters
       if (filterDate) {
