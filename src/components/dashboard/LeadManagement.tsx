@@ -391,9 +391,9 @@ export function LeadManagement() {
       if (isOnlineSales && !isAdmin && !isSalesManager && user) {
         query = query.eq('created_by', user.id);
       }
-      // For Lead Management page, only show leads assigned to current user (excluding Hibernation)
+      // For Lead Management page, only show leads assigned to current user (excluding Hibernation and L2)
       else if (isLeadManagementPage && user) {
-        query = query.eq('assigned_to', user.id).neq('status', 'hibernation');
+        query = query.eq('assigned_to', user.id).neq('status', 'hibernation').neq('status', 'L2-Call reschedule');
       }
 
       // Exclude hibernation leads from normal view unless filtered specifically
