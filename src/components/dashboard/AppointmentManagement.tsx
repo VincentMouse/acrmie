@@ -301,12 +301,11 @@ export function AppointmentManagement() {
         throw new Error('ALREADY_IN_CALL');
       }
 
-      // Claim the appointment and set TS call date
+      // Claim the appointment (only set processing_by, keep assigned_to and processing_at unchanged)
       const { data, error } = await supabase
         .from('appointments')
         .update({
           processing_by: user.id,
-          processing_at: new Date().toISOString(),
         })
         .eq('id', appointment.id)
         .is('processing_by', null)
