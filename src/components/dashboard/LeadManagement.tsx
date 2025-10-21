@@ -1087,42 +1087,6 @@ export function LeadManagement() {
     return () => clearInterval(interval);
   }, []);
 
-  // Mutation to restore L2 leads
-  const restoreL2Leads = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('restore-l2-leads');
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['leads'] });
-      if (data && data.count > 0) {
-        toast({
-          title: 'L2 Leads Restored',
-          description: `${data.count} L2 leads have been restored to their telesales agents`,
-        });
-      } else {
-        toast({
-          title: 'No Leads to Restore',
-          description: 'All L2 leads are already properly assigned',
-        });
-      }
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Restoration Failed',
-        description: error.message,
-        variant: 'destructive',
-      });
-    },
-  });
-
-  // Auto-run one-time restoration for admins/sales managers
-  useEffect(() => {
-    if (isAdmin || isSalesManager) {
-      restoreL2Leads.mutate();
-    }
-  }, [isAdmin, isSalesManager]);
 
   // Auto-return expired leads to pool
   useEffect(() => {
@@ -2011,16 +1975,6 @@ export function LeadManagement() {
                 disabled={getLeadMutation.isPending || (leads && leads.length > 0)}
               >
                 Get Lead
-              </Button>
-            )}
-            
-            {!isLeadManagementPage && (isAdmin || isSalesManager) && (
-              <Button 
-                onClick={() => restoreL2Leads.mutate()}
-                disabled={restoreL2Leads.isPending}
-                variant="outline"
-              >
-                {restoreL2Leads.isPending ? 'Restoring...' : 'Restore L2 Leads'}
               </Button>
             )}
           </div>
