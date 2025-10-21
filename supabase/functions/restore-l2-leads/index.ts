@@ -12,16 +12,23 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization') ?? ''
+    const jwt = authHeader.replace('Bearer ', '')
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
+        global: {
+          headers: jwt ? { Authorization: `Bearer ${jwt}` } : {}
+        },
         auth: {
           autoRefreshToken: false,
           persistSession: false
         }
       }
     )
+
 
     // Get the affected leads from history
     const { data: historyData, error: historyError } = await supabaseClient

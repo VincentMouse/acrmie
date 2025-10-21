@@ -1117,6 +1117,13 @@ export function LeadManagement() {
     },
   });
 
+  // Auto-run one-time restoration for admins/sales managers
+  useEffect(() => {
+    if (isAdmin || isSalesManager) {
+      restoreL2Leads.mutate();
+    }
+  }, [isAdmin, isSalesManager]);
+
   // Auto-return expired leads to pool
   useEffect(() => {
     if (!isLeadManagementPage || !isTeleSales || isLeadModalOpen) return;
