@@ -210,6 +210,8 @@ export function LeadManagement() {
   const [filterOnlineSales, setFilterOnlineSales] = useState('');
   const [filterMarketer, setFilterMarketer] = useState('');
   const [filterServiceProduct, setFilterServiceProduct] = useState('');
+  const [dateFrom, setDateFrom] = useState<Date>();
+  const [dateTo, setDateTo] = useState<Date>();
   
   // Auto-unassign specific lead - remove after execution
   useEffect(() => {
@@ -314,7 +316,7 @@ export function LeadManagement() {
   });
 
   const { data: leads, isLoading } = useQuery({
-    queryKey: ['leads', statusFilter, isLeadManagementPage],
+    queryKey: ['leads', statusFilter, isLeadManagementPage, filterAssignedTo, filterOnlineSales, filterMarketer, filterServiceProduct, dateFrom, dateTo],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -354,6 +356,28 @@ export function LeadManagement() {
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter as any);
+      }
+
+      // Apply additional filters
+      if (filterAssignedTo) {
+        query = query.eq('assigned_to', filterAssignedTo);
+      }
+      if (filterOnlineSales) {
+        query = query.eq('created_by', filterOnlineSales);
+      }
+      if (filterMarketer) {
+        query = query.eq('marketer_name', filterMarketer);
+      }
+      if (filterServiceProduct) {
+        query = query.eq('service_product', filterServiceProduct);
+      }
+      if (dateFrom) {
+        query = query.gte('created_at', dateFrom.toISOString());
+      }
+      if (dateTo) {
+        const endOfDay = new Date(dateTo);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endOfDay.toISOString());
       }
 
       const { data, error } = await query;
@@ -2045,6 +2069,70 @@ export function LeadManagement() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Date From Filter */}
+                <div className="space-y-1">
+                  <Label htmlFor="date-from" className="text-xs">Date From</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="date-from"
+                        variant="outline"
+                        className={cn(
+                          "w-full h-8 justify-start text-left font-normal text-sm",
+                          !dateFrom && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-3 w-3" />
+                        {dateFrom ? format(dateFrom, "PP") : "Pick date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateFrom}
+                        onSelect={(date) => {
+                          setDateFrom(date);
+                          setCurrentPage(1);
+                        }}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Date To Filter */}
+                <div className="space-y-1">
+                  <Label htmlFor="date-to" className="text-xs">Date To</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="date-to"
+                        variant="outline"
+                        className={cn(
+                          "w-full h-8 justify-start text-left font-normal text-sm",
+                          !dateTo && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-3 w-3" />
+                        {dateTo ? format(dateTo, "PP") : "Pick date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={dateTo}
+                        onSelect={(date) => {
+                          setDateTo(date);
+                          setCurrentPage(1);
+                        }}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
             </CollapsibleContent>
