@@ -2277,7 +2277,7 @@ export function LeadManagement() {
               {!isLeadManagementPage && <TableHead>Processed at</TableHead>}
               {isLeadManagementPage && <TableHead>Time Remaining</TableHead>}
               {isLeadManagementPage && <TableHead>Actions</TableHead>}
-              {!isLeadManagementPage && isAdmin && <TableHead>Actions</TableHead>}
+              {!isLeadManagementPage && (isAdmin || isSalesManager) && <TableHead>Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -2414,7 +2414,7 @@ export function LeadManagement() {
                     )}
                   </TableCell>
                 )}
-                {!isLeadManagementPage && isAdmin && (
+                {!isLeadManagementPage && (isAdmin || isSalesManager) && (
                   <TableCell>
                     <Button
                       size="sm"
