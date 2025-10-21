@@ -301,13 +301,11 @@ export function AppointmentManagement() {
         throw new Error('ALREADY_IN_CALL');
       }
 
-      // Claim the appointment
+      // Claim the appointment (only set processing_by, keep assigned_to and processing_at unchanged)
       const { data, error } = await supabase
         .from('appointments')
         .update({
-          assigned_to: user.id,
           processing_by: user.id,
-          processing_at: new Date().toISOString(),
         })
         .eq('id', appointment.id)
         .is('processing_by', null)
@@ -391,8 +389,7 @@ export function AppointmentManagement() {
       const { error } = await supabase
         .from('appointments')
         .update({
-          processing_by: null,
-          processing_at: null,
+          processing_by: null, // Clear CS lock, but keep processing_at (TS call date)
         })
         .eq('id', appointmentId)
         .eq('processing_by', user?.id); // Only release if still assigned to current user
@@ -435,8 +432,7 @@ export function AppointmentManagement() {
       
       const updateData: any = {
         confirmation_status: status === 'rescheduled' ? 'confirmed' : status, // C2 becomes C6
-        processing_by: null,
-        processing_at: null,
+        processing_by: null, // Clear CS processing lock, but keep processing_at (TS call date)
         appointment_date: combinedDateTime,
         branch_id: editableFields.branchId,
         notes: editableFields.notes,
