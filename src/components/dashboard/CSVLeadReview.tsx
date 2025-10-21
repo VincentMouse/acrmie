@@ -139,7 +139,7 @@ export function CSVLeadReview({ leads, onComplete, onCancel }: CSVLeadReviewProp
             marketer_name: lead.marketerName,
             notes: lead.marketerNotes || null,
             status: 'L0-Fresh Lead' as const,
-            created_by: user.id,
+            created_by: null, // CSV ingestion - no online sales creator
             funnel_id: null,
             is_duplicate: lead.isDuplicate,
             duplicate_of: lead.duplicateOf?.id || null,

@@ -295,6 +295,20 @@ export function LeadManagement() {
     },
   });
 
+  // Fetch only online sales users for Online Sales filter
+  const { data: onlineSalesUsers } = useQuery({
+    queryKey: ['online-sales-users'],
+    queryFn: async () => {
+      const { data: userRoles, error } = await supabase
+        .from('user_roles')
+        .select('user_id, profiles!inner(id, nickname)')
+        .eq('role', 'online_sales');
+      
+      if (error) throw error;
+      return userRoles?.map(ur => ur.profiles).filter(Boolean) || [];
+    },
+  });
+
   // Fetch all services/products for filter
   const { data: allServicesProducts } = useQuery({
     queryKey: ['all-services-products'],
@@ -2034,11 +2048,11 @@ export function LeadManagement() {
                     }}
                   >
                     <SelectTrigger id="filter-online-sales" className="h-8 text-sm">
-                      <SelectValue placeholder="All creators" />
+                      <SelectValue placeholder="All online sales" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="__all__">All creators</SelectItem>
-                      {allUsers?.map((user) => (
+                      <SelectItem value="__all__">All online sales</SelectItem>
+                      {onlineSalesUsers?.map((user: any) => (
                         <SelectItem key={user.id} value={user.id}>
                           {user.nickname}
                         </SelectItem>

@@ -115,7 +115,7 @@ export function LeadIngestion() {
         marketer_name: data.marketerName,
         notes: data.marketerNotes || null,
         status: 'L0-Fresh Lead' as const,
-        created_by: user.id,
+        created_by: null, // Regular lead ingestion - no online sales creator
         funnel_id: null,
         is_duplicate: duplicates && duplicates.length > 0,
         duplicate_of: duplicates && duplicates.length > 0 ? duplicates[0].id : null,
