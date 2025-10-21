@@ -525,8 +525,18 @@ export function AppointmentManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
-      setIsViewModalOpen(false);
-      setViewAppointment(null);
+      
+      // Update the callAppointment if it's the same appointment
+      if (callAppointment && viewAppointment?.id === callAppointment.id) {
+        setCallAppointment(prev => prev ? { ...prev, booking_id: bookingId } : null);
+      }
+      
+      // Close view modal if open
+      if (isViewModalOpen) {
+        setIsViewModalOpen(false);
+        setViewAppointment(null);
+      }
+      
       setBookingId('');
       
       toast({
@@ -1579,6 +1589,55 @@ export function AppointmentManagement() {
                 >
                   {fieldEditStates.notes ? "Lock" : "Edit"}
                 </Button>
+              </div>
+
+              {/* Clinic Registration */}
+              <div className="space-y-3 pt-4 border-t">
+                <Label className="text-base font-semibold">Clinic Registration</Label>
+                {callAppointment.booking_id ? (
+                  <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs text-muted-foreground">Current Booking ID</span>
+                        <p className="font-medium">{callAppointment.booking_id}</p>
+                      </div>
+                      <Badge variant="default" className="bg-green-600">Registered</Badge>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Register this appointment by entering the booking ID from the clinic
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter booking ID..."
+                        value={bookingId}
+                        onChange={(e) => setBookingId(e.target.value)}
+                      />
+                      <Button 
+                        onClick={() => {
+                          if (!bookingId.trim()) {
+                            toast({
+                              title: 'Validation error',
+                              description: 'Please enter a booking ID',
+                              variant: 'destructive',
+                            });
+                            return;
+                          }
+                          registerAppointmentMutation.mutate({
+                            appointmentId: callAppointment.id,
+                            bookingId: bookingId.trim(),
+                          });
+                        }}
+                        disabled={registerAppointmentMutation.isPending || !bookingId.trim()}
+                        variant="secondary"
+                      >
+                        {registerAppointmentMutation.isPending ? 'Registering...' : 'Register'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Status */}
