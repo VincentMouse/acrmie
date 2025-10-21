@@ -430,29 +430,32 @@ export function LeadManagement() {
       const { data, error } = await query;
       if (error) throw error;
 
-      // Fetch last processor for each lead from history
+      // Fetch last processor and last processed time for each lead from history
       if (data && !isLeadManagementPage) {
         const leadIds = data.map(lead => lead.id);
         
         // Get the most recent history entry for each lead
         const { data: historyData } = await supabase
           .from('lead_history')
-          .select('lead_id, changed_by, profiles!lead_history_changed_by_fkey(nickname)')
+          .select('lead_id, changed_by, created_at, profiles!lead_history_changed_by_fkey(nickname)')
           .in('lead_id', leadIds)
           .order('created_at', { ascending: false });
 
-        // Map last processor to each lead
+        // Map last processor and last processed time to each lead
         const lastProcessorMap = new Map();
+        const lastProcessedAtMap = new Map();
         historyData?.forEach(history => {
           if (!lastProcessorMap.has(history.lead_id)) {
             lastProcessorMap.set(history.lead_id, history.profiles?.nickname);
+            lastProcessedAtMap.set(history.lead_id, history.created_at);
           }
         });
 
-        // Add last_processor to each lead
+        // Add last_processor and last_processed_at to each lead
         return data.map(lead => ({
           ...lead,
-          last_processor: lastProcessorMap.get(lead.id) || null
+          last_processor: lastProcessorMap.get(lead.id) || null,
+          last_processed_at: lastProcessedAtMap.get(lead.id) || null
         }));
       }
 
@@ -2271,6 +2274,7 @@ export function LeadManagement() {
               {!isLeadManagementPage && <TableHead>Marketer</TableHead>}
               {!isLeadManagementPage && <TableHead>Online Sales</TableHead>}
               {!isLeadManagementPage && <TableHead>Assigned To</TableHead>}
+              {!isLeadManagementPage && <TableHead>Processed at</TableHead>}
               {isLeadManagementPage && <TableHead>Time Remaining</TableHead>}
               {isLeadManagementPage && <TableHead>Actions</TableHead>}
               {!isLeadManagementPage && isAdmin && <TableHead>Actions</TableHead>}
@@ -2351,6 +2355,13 @@ export function LeadManagement() {
                 {!isLeadManagementPage && (
                   <TableCell>
                     {lead.assigned?.nickname || (lead as any).last_processor || 'Unassigned'}
+                  </TableCell>
+                )}
+                {!isLeadManagementPage && (
+                  <TableCell>
+                    {(lead as any).last_processed_at 
+                      ? format(new Date((lead as any).last_processed_at), 'MMM d, yyyy HH:mm')
+                      : '-'}
                   </TableCell>
                 )}
                 {isLeadManagementPage && (
