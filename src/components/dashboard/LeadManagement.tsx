@@ -1340,6 +1340,11 @@ export function LeadManagement() {
                       <Phone className="h-4 w-4 text-muted-foreground" />
                       <span className="font-mono text-sm">{pulledLead.phone}</span>
                     </div>
+                    {pulledLead.campaign_name && (
+                      <div className="text-xs text-muted-foreground">
+                        {pulledLead.campaign_name}
+                      </div>
+                    )}
                   </div>
 
                   {/* Timer and Service/Product */}
