@@ -1087,6 +1087,29 @@ export function LeadManagement() {
     return () => clearInterval(interval);
   }, []);
 
+  // One-time restoration of L2 leads that were mistakenly returned to pool
+  useEffect(() => {
+    const restoreMistakenlyReturnedLeads = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('restore-l2-leads');
+        if (error) {
+          console.error('Failed to restore L2 leads:', error);
+        } else if (data && data.count > 0) {
+          queryClient.invalidateQueries({ queryKey: ['leads'] });
+          toast({
+            title: 'L2 Leads Restored',
+            description: `${data.count} L2 leads have been restored to their telesales agents`,
+          });
+        }
+      } catch (err) {
+        console.error('Error calling restore function:', err);
+      }
+    };
+
+    // Only run once on mount
+    restoreMistakenlyReturnedLeads();
+  }, []); // Empty dependency array ensures this runs only once
+
   // Auto-return expired leads to pool
   useEffect(() => {
     if (!isLeadManagementPage || !isTeleSales || isLeadModalOpen) return;
