@@ -1,6 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 Deno.serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders })
+  }
+
   try {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -44,13 +54,13 @@ Deno.serve(async (req) => {
     if (leadsError) throw leadsError
 
     if (!leadsToRestore || leadsToRestore.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          message: 'No leads need restoration',
-          count: 0 
-        }),
-        { headers: { 'Content-Type': 'application/json' } }
-      )
+    return new Response(
+      JSON.stringify({ 
+        message: 'No leads need restoration',
+        count: 0 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
     }
 
     // Restore each lead
@@ -82,13 +92,13 @@ Deno.serve(async (req) => {
         count: restoredLeads.length,
         leads: restoredLeads
       }),
-      { headers: { 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error: any) {
     return new Response(
       JSON.stringify({ error: error.message || 'Unknown error' }),
-      { status: 400, headers: { 'Content-Type': 'application/json' } }
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })

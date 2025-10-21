@@ -1087,28 +1087,35 @@ export function LeadManagement() {
     return () => clearInterval(interval);
   }, []);
 
-  // One-time restoration of L2 leads that were mistakenly returned to pool
-  useEffect(() => {
-    const restoreMistakenlyReturnedLeads = async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke('restore-l2-leads');
-        if (error) {
-          console.error('Failed to restore L2 leads:', error);
-        } else if (data && data.count > 0) {
-          queryClient.invalidateQueries({ queryKey: ['leads'] });
-          toast({
-            title: 'L2 Leads Restored',
-            description: `${data.count} L2 leads have been restored to their telesales agents`,
-          });
-        }
-      } catch (err) {
-        console.error('Error calling restore function:', err);
+  // Mutation to restore L2 leads
+  const restoreL2Leads = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('restore-l2-leads');
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      if (data && data.count > 0) {
+        toast({
+          title: 'L2 Leads Restored',
+          description: `${data.count} L2 leads have been restored to their telesales agents`,
+        });
+      } else {
+        toast({
+          title: 'No Leads to Restore',
+          description: 'All L2 leads are already properly assigned',
+        });
       }
-    };
-
-    // Only run once on mount
-    restoreMistakenlyReturnedLeads();
-  }, []); // Empty dependency array ensures this runs only once
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Restoration Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
 
   // Auto-return expired leads to pool
   useEffect(() => {
@@ -1985,14 +1992,26 @@ export function LeadManagement() {
             {isLeadManagementPage ? 'My Assigned Leads' : 'Lead Management'}
           </h2>
           
-          {isLeadManagementPage && isTeleSales && (
-            <Button 
-              onClick={() => getLeadMutation.mutate()}
-              disabled={getLeadMutation.isPending || (leads && leads.length > 0)}
-            >
-              Get Lead
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {isLeadManagementPage && isTeleSales && (
+              <Button 
+                onClick={() => getLeadMutation.mutate()}
+                disabled={getLeadMutation.isPending || (leads && leads.length > 0)}
+              >
+                Get Lead
+              </Button>
+            )}
+            
+            {!isLeadManagementPage && (isAdmin || isSalesManager) && (
+              <Button 
+                onClick={() => restoreL2Leads.mutate()}
+                disabled={restoreL2Leads.isPending}
+                variant="outline"
+              >
+                {restoreL2Leads.isPending ? 'Restoring...' : 'Restore L2 Leads'}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Advanced Filters - Only on Lead Management page */}
