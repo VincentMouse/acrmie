@@ -951,6 +951,7 @@ export function LeadManagement() {
             created_by: user?.id,
             notes: updates.notes,
             service_product: (branchServices?.find(s => s.id === suggestedService)?.name) || (branchServices?.find(s => s.id === concurrentService)?.name) || pulledLead.service_product,
+            processing_at: new Date().toISOString(),
           });
 
         if (appointmentError) throw appointmentError;

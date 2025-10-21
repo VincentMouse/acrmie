@@ -663,6 +663,7 @@ export function AppointmentManagement() {
         appointment_date: data.appointmentDate,
         notes: data.notes,
         created_by: user.id,
+        processing_at: new Date().toISOString(),
       }]);
 
       if (error) throw error;
