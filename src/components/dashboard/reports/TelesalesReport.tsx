@@ -114,9 +114,24 @@ export function TelesalesReport() {
 
   const getStatsForLeads = async (userId: string, assignedLeadIds: string[], getLeadCount: number, handledLeads: any[]) => {
     const leadsHandled = handledLeads.length;
-    // Count status breakdown
+    
+    // Count L6 only for leads where this agent actually set the L6 status
+    const { data: l6History } = await supabase
+      .from('lead_history')
+      .select('lead_id')
+      .eq('changed_by', userId)
+      .eq('new_status', 'L6-Appointment set');
+    
+    const l6LeadIds = new Set(l6History?.map(h => h.lead_id) || []);
+    
+    // Count status breakdown - but use lead_history for final status attribution
     const statusCounts = handledLeads.reduce((acc, lead) => {
       if (lead && lead.status) {
+        // Only count L6 if this agent actually set it to L6
+        if (lead.status === 'L6-Appointment set' && !l6LeadIds.has(lead.id)) {
+          // Skip this L6 - it was set by another agent
+          return acc;
+        }
         acc[lead.status] = (acc[lead.status] || 0) + 1;
       }
       return acc;
