@@ -565,35 +565,31 @@ export function LeadManagement() {
   const { data: topAgentsToday } = useQuery<Array<{ name: string; count: number }>>({
     queryKey: ['top-agents-today'],
     queryFn: async () => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
       
+      // Use lead_history to attribute L6 to the agent who set it
       const { data, error } = await supabase
-        .from('leads')
-        .select('assigned_to, profiles!leads_assigned_to_fkey(nickname)')
-        .eq('status', 'L6-Appointment set')
-        .gte('processed_at', today.toISOString());
+        .from('lead_history')
+        .select('changed_by, profiles!lead_history_changed_by_fkey(nickname)')
+        .eq('new_status', 'L6-Appointment set')
+        .gte('created_at', start.toISOString());
       
       if (error) throw error;
       
-      // Count L6 by agent
-      const counts = data.reduce((acc: any, lead: any) => {
-        if (lead.assigned_to) {
-          const agentId = lead.assigned_to;
-          const agentName = lead.profiles?.nickname || 'Unknown';
-          if (!acc[agentId]) {
-            acc[agentId] = { name: agentName, count: 0 };
-          }
+      const counts = (data || []).reduce((acc: any, row: any) => {
+        if (row.changed_by) {
+          const agentId = row.changed_by;
+          const agentName = row.profiles?.nickname || 'Unknown';
+          if (!acc[agentId]) acc[agentId] = { name: agentName, count: 0 };
           acc[agentId].count++;
         }
         return acc;
       }, {});
       
-      // Get top 5 agents
-      const topAgents = Object.values(counts)
+      return Object.values(counts)
         .sort((a: any, b: any) => b.count - a.count)
         .slice(0, 5) as Array<{ name: string; count: number }>;
-      return topAgents;
     },
     enabled: isLeadManagementPage,
   });
@@ -602,35 +598,30 @@ export function LeadManagement() {
     queryKey: ['top-agents-week'],
     queryFn: async () => {
       const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of week (Sunday)
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Sunday
       weekStart.setHours(0, 0, 0, 0);
       
       const { data, error } = await supabase
-        .from('leads')
-        .select('assigned_to, profiles!leads_assigned_to_fkey(nickname)')
-        .eq('status', 'L6-Appointment set')
-        .gte('processed_at', weekStart.toISOString());
+        .from('lead_history')
+        .select('changed_by, profiles!lead_history_changed_by_fkey(nickname)')
+        .eq('new_status', 'L6-Appointment set')
+        .gte('created_at', weekStart.toISOString());
       
       if (error) throw error;
       
-      // Count L6 by agent
-      const counts = data.reduce((acc: any, lead: any) => {
-        if (lead.assigned_to) {
-          const agentId = lead.assigned_to;
-          const agentName = lead.profiles?.nickname || 'Unknown';
-          if (!acc[agentId]) {
-            acc[agentId] = { name: agentName, count: 0 };
-          }
-          acc[agentId].count++;
+      const counts = (data || []).reduce((acc: any, row: any) => {
+        if (row.changed_by) {
+          const id = row.changed_by;
+          const name = row.profiles?.nickname || 'Unknown';
+          if (!acc[id]) acc[id] = { name, count: 0 };
+          acc[id].count++;
         }
         return acc;
       }, {});
       
-      // Get top 5 agents
-      const topAgents = Object.values(counts)
+      return Object.values(counts)
         .sort((a: any, b: any) => b.count - a.count)
         .slice(0, 5) as Array<{ name: string; count: number }>;
-      return topAgents;
     },
     enabled: isLeadManagementPage,
   });
@@ -642,39 +633,48 @@ export function LeadManagement() {
       monthStart.setDate(1);
       monthStart.setHours(0, 0, 0, 0);
       
+      // Get confirmed appointments this month with revenue
       const { data: appointments, error } = await supabase
         .from('appointments')
-        .select('revenue, lead_id, leads!appointments_lead_id_fkey(assigned_to, profiles!leads_assigned_to_fkey(nickname))')
+        .select('revenue, lead_id, confirmed_at')
         .gte('confirmed_at', monthStart.toISOString())
         .not('revenue', 'is', null);
-      
       if (error) throw error;
+      if (!appointments || appointments.length === 0) return [];
+      
+      const leadIds = [...new Set(appointments.map(a => a.lead_id).filter(Boolean))];
+      if (leadIds.length === 0) return [];
+      
+      // For each lead, find the agent who set it to L6
+      const { data: l6History } = await supabase
+        .from('lead_history')
+        .select('lead_id, changed_by, created_at, profiles!lead_history_changed_by_fkey(nickname)')
+        .in('lead_id', leadIds)
+        .eq('new_status', 'L6-Appointment set')
+        .order('created_at', { ascending: false });
+      
+      // Map lead_id -> agent (most recent L6 setter)
+      const leadAgentMap = new Map<string, { id: string; name: string }>();
+      (l6History || []).forEach(row => {
+        if (!leadAgentMap.has(row.lead_id) && row.changed_by) {
+          leadAgentMap.set(row.lead_id, { id: row.changed_by, name: row.profiles?.nickname || 'Unknown' });
+        }
+      });
       
       // Sum revenue by agent
       const revenues = appointments.reduce((acc: any, apt: any) => {
-        const lead = apt.leads;
-        if (lead?.assigned_to && apt.revenue) {
-          const agentId = lead.assigned_to;
-          const agentName = lead.profiles?.nickname || 'Unknown';
-          if (!acc[agentId]) {
-            acc[agentId] = { name: agentName, revenue: 0, l6Count: 0 };
-          }
-          acc[agentId].revenue += parseFloat(apt.revenue);
-          acc[agentId].l6Count++;
-        }
+        const agent = leadAgentMap.get(apt.lead_id);
+        if (!agent) return acc;
+        if (!acc[agent.id]) acc[agent.id] = { name: agent.name, revenue: 0, l6Count: 0 };
+        acc[agent.id].revenue += parseFloat(apt.revenue);
+        acc[agent.id].l6Count += 1;
         return acc;
       }, {});
       
-      // Calculate revenue per L6 and get top 5 agents
-      const topAgents = Object.values(revenues)
-        .map((agent: any) => ({
-          ...agent,
-          avgRevenue: agent.revenue / agent.l6Count
-        }))
+      return Object.values(revenues)
+        .map((agent: any) => ({ ...agent, avgRevenue: agent.l6Count ? agent.revenue / agent.l6Count : 0 }))
         .sort((a: any, b: any) => b.avgRevenue - a.avgRevenue)
         .slice(0, 5) as Array<{ name: string; revenue: number; l6Count: number; avgRevenue: number }>;
-      
-      return topAgents;
     },
     enabled: isLeadManagementPage,
   });
