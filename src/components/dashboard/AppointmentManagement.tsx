@@ -1148,6 +1148,7 @@ export function AppointmentManagement() {
               <TableHead>Assigned To</TableHead>
               <TableHead>Confirmation Status</TableHead>
               <TableHead>Check-in Status</TableHead>
+              <TableHead>Processed by</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -1203,6 +1204,27 @@ export function AppointmentManagement() {
                       <Badge variant="default">
                         {appointment.check_in_status.replace(/_/g, ' ')}
                       </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {isProcessing && appointment.processing_by === user?.id ? (
+                      <div className="flex items-center gap-1">
+                        <Badge variant="default" className="gap-1">
+                          <Phone className="h-3 w-3" />
+                          {(appointment as any).processing?.nickname || 'You'} - In Call
+                        </Badge>
+                      </div>
+                    ) : isProcessing ? (
+                      <div className="flex items-center gap-1">
+                        <Badge variant="secondary" className="gap-1">
+                          <Phone className="h-3 w-3" />
+                          {(appointment as any).processing?.nickname || 'Unknown'} - In Call
+                        </Badge>
+                      </div>
+                    ) : appointment.processing_by && (appointment.is_completed || isFinalStatus(appointment)) ? (
+                      <span>{(appointment as any).processing?.nickname || '-'}</span>
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
