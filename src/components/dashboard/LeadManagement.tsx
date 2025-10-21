@@ -205,13 +205,46 @@ export function LeadManagement() {
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const leadsPerPage = 10;
   
-  // Filter states
+  // Filter states - temporary selections (not applied until Search is clicked)
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [tempFilterAssignedTo, setTempFilterAssignedTo] = useState('');
+  const [tempFilterOnlineSales, setTempFilterOnlineSales] = useState('');
+  const [tempFilterMarketer, setTempFilterMarketer] = useState('');
+  const [tempFilterServiceProduct, setTempFilterServiceProduct] = useState('');
+  const [tempDateRange, setTempDateRange] = useState<DateRange | undefined>();
+  
+  // Applied filters (used in query)
   const [filterAssignedTo, setFilterAssignedTo] = useState('');
   const [filterOnlineSales, setFilterOnlineSales] = useState('');
   const [filterMarketer, setFilterMarketer] = useState('');
   const [filterServiceProduct, setFilterServiceProduct] = useState('');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  
+  // Apply filters function
+  const handleApplyFilters = () => {
+    setFilterAssignedTo(tempFilterAssignedTo);
+    setFilterOnlineSales(tempFilterOnlineSales);
+    setFilterMarketer(tempFilterMarketer);
+    setFilterServiceProduct(tempFilterServiceProduct);
+    setDateRange(tempDateRange);
+    setCurrentPage(1);
+  };
+  
+  // Clear filters function
+  const handleClearFilters = () => {
+    setTempFilterAssignedTo('');
+    setTempFilterOnlineSales('');
+    setTempFilterMarketer('');
+    setTempFilterServiceProduct('');
+    setTempDateRange(undefined);
+    setFilterAssignedTo('');
+    setFilterOnlineSales('');
+    setFilterMarketer('');
+    setFilterServiceProduct('');
+    setDateRange(undefined);
+    setCurrentPage(1);
+  };
+
   
   // Auto-unassign specific lead - remove after execution
   useEffect(() => {
@@ -1935,19 +1968,12 @@ export function LeadManagement() {
                   <ChevronDown className={cn("w-4 h-4 ml-2 transition-transform", isFilterOpen && "rotate-180")} />
                 </Button>
               </CollapsibleTrigger>
-              {(searchQuery || filterAssignedTo || filterOnlineSales || filterMarketer || filterServiceProduct) && (
+              {(searchQuery || filterAssignedTo || filterOnlineSales || filterMarketer || filterServiceProduct || dateRange) && (
                 <Button
                   variant="ghost"
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => {
-                    setSearchQuery('');
-                    setFilterAssignedTo('');
-                    setFilterOnlineSales('');
-                    setFilterMarketer('');
-                    setFilterServiceProduct('');
-                    setCurrentPage(1);
-                  }}
+                  onClick={handleClearFilters}
                 >
                   Clear All
                 </Button>
@@ -1978,10 +2004,9 @@ export function LeadManagement() {
                 <div className="space-y-1">
                   <Label htmlFor="filter-assigned" className="text-xs">Assigned To</Label>
                   <Select 
-                    value={filterAssignedTo || "__all__"} 
+                    value={tempFilterAssignedTo || "__all__"} 
                     onValueChange={(val) => {
-                      setFilterAssignedTo(val === "__all__" ? '' : val);
-                      setCurrentPage(1);
+                      setTempFilterAssignedTo(val === "__all__" ? '' : val);
                     }}
                   >
                     <SelectTrigger id="filter-assigned" className="h-8 text-sm">
@@ -2003,10 +2028,9 @@ export function LeadManagement() {
                 <div className="space-y-1">
                   <Label htmlFor="filter-online-sales" className="text-xs">Online Sales</Label>
                   <Select 
-                    value={filterOnlineSales || "__all__"} 
+                    value={tempFilterOnlineSales || "__all__"} 
                     onValueChange={(val) => {
-                      setFilterOnlineSales(val === "__all__" ? '' : val);
-                      setCurrentPage(1);
+                      setTempFilterOnlineSales(val === "__all__" ? '' : val);
                     }}
                   >
                     <SelectTrigger id="filter-online-sales" className="h-8 text-sm">
@@ -2027,10 +2051,9 @@ export function LeadManagement() {
                 <div className="space-y-1">
                   <Label htmlFor="filter-marketer" className="text-xs">Marketer</Label>
                   <Select 
-                    value={filterMarketer || "__all__"} 
+                    value={tempFilterMarketer || "__all__"} 
                     onValueChange={(val) => {
-                      setFilterMarketer(val === "__all__" ? '' : val);
-                      setCurrentPage(1);
+                      setTempFilterMarketer(val === "__all__" ? '' : val);
                     }}
                   >
                     <SelectTrigger id="filter-marketer" className="h-8 text-sm">
@@ -2051,10 +2074,9 @@ export function LeadManagement() {
                 <div className="space-y-1">
                   <Label htmlFor="filter-service" className="text-xs">Service/Product</Label>
                   <Select 
-                    value={filterServiceProduct || "__all__"} 
+                    value={tempFilterServiceProduct || "__all__"} 
                     onValueChange={(val) => {
-                      setFilterServiceProduct(val === "__all__" ? '' : val);
-                      setCurrentPage(1);
+                      setTempFilterServiceProduct(val === "__all__" ? '' : val);
                     }}
                   >
                     <SelectTrigger id="filter-service" className="h-8 text-sm">
@@ -2081,17 +2103,17 @@ export function LeadManagement() {
                         variant="outline"
                         className={cn(
                           "w-full h-8 justify-start text-left font-normal text-sm",
-                          !dateRange?.from && "text-muted-foreground"
+                          !tempDateRange?.from && "text-muted-foreground"
                         )}
                       >
                         <CalendarIcon className="mr-2 h-3 w-3" />
-                        {dateRange?.from ? (
-                          dateRange.to ? (
+                        {tempDateRange?.from ? (
+                          tempDateRange.to ? (
                             <>
-                              {format(dateRange.from, "PP")} - {format(dateRange.to, "PP")}
+                              {format(tempDateRange.from, "PP")} - {format(tempDateRange.to, "PP")}
                             </>
                           ) : (
-                            format(dateRange.from, "PP")
+                            format(tempDateRange.from, "PP")
                           )
                         ) : (
                           "Pick date range"
@@ -2101,10 +2123,9 @@ export function LeadManagement() {
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         mode="range"
-                        selected={dateRange}
+                        selected={tempDateRange}
                         onSelect={(range) => {
-                          setDateRange(range);
-                          setCurrentPage(1);
+                          setTempDateRange(range);
                         }}
                         initialFocus
                         numberOfMonths={2}
@@ -2113,6 +2134,26 @@ export function LeadManagement() {
                     </PopoverContent>
                   </Popover>
                 </div>
+              </div>
+              
+              {/* Search and Clear Buttons */}
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleApplyFilters}
+                  size="sm"
+                  className="h-8"
+                >
+                  <Search className="w-3 h-3 mr-2" />
+                  Search
+                </Button>
+                <Button 
+                  onClick={handleClearFilters}
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                >
+                  Clear Filters
+                </Button>
               </div>
             </CollapsibleContent>
           </Collapsible>
