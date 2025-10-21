@@ -52,73 +52,59 @@ export function TelesalesReport() {
         telesalesUsers.map(async (user) => {
           const userId = user.user_id;
           
-          // Get lead count - number of times agent got a lead
-          let getLeadQuery = supabase
-            .from('lead_history')
-            .select('lead_id', { count: 'exact', head: true })
-            .eq('new_assigned_to', userId)
-            .not('old_assigned_to', 'eq', userId);
+          // Build lead query based on filter type
+          let leadsQuery = supabase
+            .from('leads')
+            .select('id, status, call_duration_seconds, created_at, processed_at');
           
           if (dateFilterType === 'generation') {
             // Filter by when lead was created
-            const { data: leadIds } = await supabase
-              .from('lead_history')
-              .select('lead_id')
-              .eq('new_assigned_to', userId)
-              .not('old_assigned_to', 'eq', userId);
-            
-            if (leadIds && leadIds.length > 0) {
-              let leadsQuery = supabase
-                .from('leads')
-                .select('id', { count: 'exact', head: true })
-                .in('id', leadIds.map(l => l.lead_id));
-              
-              if (dateRange?.from) {
-                leadsQuery = leadsQuery.gte('created_at', dateRange.from.toISOString());
-              }
-              if (dateRange?.to) {
-                leadsQuery = leadsQuery.lte('created_at', dateRange.to.toISOString());
-              }
-              
-              const { count: getLeadCount } = await leadsQuery;
-              
-              // Continue with other queries for these filtered leads
-              const { data: filteredLeads } = await supabase
-                .from('leads')
-                .select('id')
-                .in('id', leadIds.map(l => l.lead_id))
-                .gte('created_at', dateRange?.from?.toISOString() || '')
-                .lte('created_at', dateRange?.to?.toISOString() || '');
-              
-              const filteredLeadIds = filteredLeads?.map(l => l.id) || [];
-              
-              return await getStatsForLeads(userId, filteredLeadIds, getLeadCount || 0);
-            }
-            return await getStatsForLeads(userId, [], 0);
-          } else {
-            // Filter by processing date
             if (dateRange?.from) {
-              getLeadQuery = getLeadQuery.gte('created_at', dateRange.from.toISOString());
+              leadsQuery = leadsQuery.gte('created_at', dateRange.from.toISOString());
             }
             if (dateRange?.to) {
-              getLeadQuery = getLeadQuery.lte('created_at', dateRange.to.toISOString());
+              leadsQuery = leadsQuery.lte('created_at', dateRange.to.toISOString());
             }
-            
-            const { count: getLeadCount } = await getLeadQuery;
-            
-            // Get lead IDs for this time period
-            const { data: historyData } = await supabase
-              .from('lead_history')
-              .select('lead_id')
-              .eq('new_assigned_to', userId)
-              .not('old_assigned_to', 'eq', userId)
-              .gte('created_at', dateRange?.from?.toISOString() || '')
-              .lte('created_at', dateRange?.to?.toISOString() || '');
-            
-            const leadIds = historyData?.map(h => h.lead_id) || [];
-            
-            return await getStatsForLeads(userId, leadIds, getLeadCount || 0);
+          } else {
+            // Filter by when lead was processed
+            leadsQuery = leadsQuery.not('processed_at', 'is', null);
+            if (dateRange?.from) {
+              leadsQuery = leadsQuery.gte('processed_at', dateRange.from.toISOString());
+            }
+            if (dateRange?.to) {
+              leadsQuery = leadsQuery.lte('processed_at', dateRange.to.toISOString());
+            }
           }
+          
+          const { data: allLeads } = await leadsQuery;
+          
+          // Get lead_history to find which leads were assigned to this agent
+          const leadIds = allLeads?.map(l => l.id) || [];
+          if (leadIds.length === 0) {
+            return await getStatsForLeads(userId, [], 0, []);
+          }
+          
+          const { data: assignmentHistory } = await supabase
+            .from('lead_history')
+            .select('lead_id')
+            .in('lead_id', leadIds)
+            .eq('new_assigned_to', userId)
+            .not('old_assigned_to', 'eq', userId);
+          
+          const assignedLeadIds = [...new Set(assignmentHistory?.map(h => h.lead_id) || [])];
+          const getLeadCount = assignedLeadIds.length;
+          
+          // Filter allLeads to only include leads processed by this agent
+          const { data: processedByAgent } = await supabase
+            .from('lead_history')
+            .select('lead_id')
+            .in('lead_id', leadIds)
+            .eq('changed_by', userId);
+          
+          const processedLeadIds = [...new Set(processedByAgent?.map(h => h.lead_id) || [])];
+          const leadsProcessedByAgent = allLeads?.filter(l => processedLeadIds.includes(l.id)) || [];
+          
+          return await getStatsForLeads(userId, assignedLeadIds, getLeadCount, leadsProcessedByAgent);
         })
       );
 
@@ -126,39 +112,10 @@ export function TelesalesReport() {
     },
   });
 
-  const getStatsForLeads = async (userId: string, leadIds: string[], getLeadCount: number) => {
-    // Get unique leads handled (processed) by this agent using lead_history
-    let historyQuery = supabase
-      .from('lead_history')
-      .select('lead_id')
-      .eq('changed_by', userId);
-    
-    // If using generation date filter, only consider the pre-filtered lead IDs
-    if (dateFilterType === 'generation' && leadIds.length > 0) {
-      historyQuery = historyQuery.in('lead_id', leadIds);
-    }
-    
-    if (dateFilterType === 'processing' && dateRange?.from) {
-      historyQuery = historyQuery.gte('created_at', dateRange.from.toISOString());
-    }
-    if (dateFilterType === 'processing' && dateRange?.to) {
-      historyQuery = historyQuery.lte('created_at', dateRange.to.toISOString());
-    }
-    
-    const { data: historyData } = await historyQuery;
-    const uniqueLeadIds = [...new Set(historyData?.map(h => h.lead_id) || [])];
-    
-    // Get lead details for these leads
-    const { data: handledLeads } = uniqueLeadIds.length > 0
-      ? await supabase
-          .from('leads')
-          .select('id, status, call_duration_seconds')
-          .in('id', uniqueLeadIds)
-      : { data: [] };
-    const leadsHandled = handledLeads?.length || 0;
-    
+  const getStatsForLeads = async (userId: string, assignedLeadIds: string[], getLeadCount: number, handledLeads: any[]) => {
+    const leadsHandled = handledLeads.length;
     // Count status breakdown
-    const statusCounts = (handledLeads || []).reduce((acc, lead) => {
+    const statusCounts = handledLeads.reduce((acc, lead) => {
       if (lead && lead.status) {
         acc[lead.status] = (acc[lead.status] || 0) + 1;
       }
@@ -173,7 +130,7 @@ export function TelesalesReport() {
     const l6Count = statusCounts['L6-Appointment set'] || 0;
 
     // Calculate average call time from handled leads
-    const totalCallTime = (handledLeads || []).reduce((sum, lead) => sum + (lead.call_duration_seconds || 0), 0);
+    const totalCallTime = handledLeads.reduce((sum, lead) => sum + (lead.call_duration_seconds || 0), 0);
     const avgCallTime = leadsHandled > 0 ? Math.round(totalCallTime / leadsHandled) : 0;
 
     // Get confirmed appointments
