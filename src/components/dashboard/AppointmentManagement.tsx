@@ -1139,6 +1139,7 @@ export function AppointmentManagement() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>TS Call Date</TableHead>
               <TableHead>Customer Name</TableHead>
               <TableHead>Service/Product</TableHead>
               <TableHead>Branch</TableHead>
@@ -1169,6 +1170,11 @@ export function AppointmentManagement() {
                   key={appointment.id}
                   className={rowColor}
                 >
+                  <TableCell>
+                    {appointment.processing_at 
+                      ? format(new Date(appointment.processing_at), 'PPp')
+                      : '-'}
+                  </TableCell>
                   <TableCell className="font-medium">
                     {appointment.lead?.first_name} {appointment.lead?.last_name}
                   </TableCell>
