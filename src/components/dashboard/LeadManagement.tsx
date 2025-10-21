@@ -21,6 +21,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { format, setHours, setMinutes } from 'date-fns';
 import { cn } from '@/lib/utils';
+import type { DateRange } from 'react-day-picker';
 
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
@@ -210,8 +211,7 @@ export function LeadManagement() {
   const [filterOnlineSales, setFilterOnlineSales] = useState('');
   const [filterMarketer, setFilterMarketer] = useState('');
   const [filterServiceProduct, setFilterServiceProduct] = useState('');
-  const [dateFrom, setDateFrom] = useState<Date>();
-  const [dateTo, setDateTo] = useState<Date>();
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
   
   // Auto-unassign specific lead - remove after execution
   useEffect(() => {
@@ -316,7 +316,7 @@ export function LeadManagement() {
   });
 
   const { data: leads, isLoading } = useQuery({
-    queryKey: ['leads', statusFilter, isLeadManagementPage, filterAssignedTo, filterOnlineSales, filterMarketer, filterServiceProduct, dateFrom, dateTo],
+    queryKey: ['leads', statusFilter, isLeadManagementPage, filterAssignedTo, filterOnlineSales, filterMarketer, filterServiceProduct, dateRange],
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -371,11 +371,11 @@ export function LeadManagement() {
       if (filterServiceProduct) {
         query = query.eq('service_product', filterServiceProduct);
       }
-      if (dateFrom) {
-        query = query.gte('created_at', dateFrom.toISOString());
+      if (dateRange?.from) {
+        query = query.gte('created_at', dateRange.from.toISOString());
       }
-      if (dateTo) {
-        const endOfDay = new Date(dateTo);
+      if (dateRange?.to) {
+        const endOfDay = new Date(dateRange.to);
         endOfDay.setHours(23, 59, 59, 999);
         query = query.lte('created_at', endOfDay.toISOString());
       }
@@ -2071,64 +2071,43 @@ export function LeadManagement() {
                   </Select>
                 </div>
 
-                {/* Date From Filter */}
+                {/* Lead Generation Date Range */}
                 <div className="space-y-1">
-                  <Label htmlFor="date-from" className="text-xs">Date From</Label>
+                  <Label htmlFor="date-range" className="text-xs">Lead Generation Date</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
-                        id="date-from"
+                        id="date-range"
                         variant="outline"
                         className={cn(
                           "w-full h-8 justify-start text-left font-normal text-sm",
-                          !dateFrom && "text-muted-foreground"
+                          !dateRange?.from && "text-muted-foreground"
                         )}
                       >
                         <CalendarIcon className="mr-2 h-3 w-3" />
-                        {dateFrom ? format(dateFrom, "PP") : "Pick date"}
+                        {dateRange?.from ? (
+                          dateRange.to ? (
+                            <>
+                              {format(dateRange.from, "PP")} - {format(dateRange.to, "PP")}
+                            </>
+                          ) : (
+                            format(dateRange.from, "PP")
+                          )
+                        ) : (
+                          "Pick date range"
+                        )}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
-                        mode="single"
-                        selected={dateFrom}
-                        onSelect={(date) => {
-                          setDateFrom(date);
+                        mode="range"
+                        selected={dateRange}
+                        onSelect={(range) => {
+                          setDateRange(range);
                           setCurrentPage(1);
                         }}
                         initialFocus
-                        className={cn("p-3 pointer-events-auto")}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                {/* Date To Filter */}
-                <div className="space-y-1">
-                  <Label htmlFor="date-to" className="text-xs">Date To</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        id="date-to"
-                        variant="outline"
-                        className={cn(
-                          "w-full h-8 justify-start text-left font-normal text-sm",
-                          !dateTo && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-3 w-3" />
-                        {dateTo ? format(dateTo, "PP") : "Pick date"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={dateTo}
-                        onSelect={(date) => {
-                          setDateTo(date);
-                          setCurrentPage(1);
-                        }}
-                        initialFocus
+                        numberOfMonths={2}
                         className={cn("p-3 pointer-events-auto")}
                       />
                     </PopoverContent>
