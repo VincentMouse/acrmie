@@ -845,9 +845,16 @@ export function LeadManagement() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ leadId, status }: { leadId: string; status: string }) => {
+      const updates: any = { status: status as any };
+      
+      // Set processed_at when moving to L6 status
+      if (status === 'L6-Appointment set') {
+        updates.processed_at = new Date().toISOString();
+      }
+      
       const { error } = await supabase
         .from('leads')
-        .update({ status: status as any })
+        .update(updates)
         .eq('id', leadId);
 
       if (error) throw error;
