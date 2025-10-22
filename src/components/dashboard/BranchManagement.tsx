@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Building2, Plus, Clock, Upload, Package, Trash2 } from 'lucide-react';
+import { Building2, Plus, Clock, Upload, Package, Trash2, Calendar } from 'lucide-react';
 import Papa from 'papaparse';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -62,6 +62,24 @@ export function BranchManagement() {
         .select('*')
         .eq('branch_id', selectedBranch)
         .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedBranch,
+  });
+
+  // Fetch time slots for selected branch
+  const { data: timeSlots } = useQuery({
+    queryKey: ['time_slots', selectedBranch],
+    queryFn: async () => {
+      if (!selectedBranch) return [];
+      const { data, error } = await supabase
+        .from('time_slots')
+        .select('*')
+        .eq('branch_id', selectedBranch)
+        .gte('slot_date', new Date().toISOString().split('T')[0])
+        .order('slot_date', { ascending: true })
+        .order('slot_time', { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -123,7 +141,8 @@ export function BranchManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branch_working_hours'] });
-      toast.success('Working hours saved and time slots generated');
+      queryClient.invalidateQueries({ queryKey: ['time_slots'] });
+      toast.success('Working hours saved and time slots updated');
     },
     onError: () => {
       toast.error('Failed to save working hours');
@@ -285,10 +304,14 @@ export function BranchManagement() {
         <Card>
           <CardContent className="pt-6">
             <Tabs defaultValue="working-hours">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="working-hours">
                   <Clock className="mr-2 h-4 w-4" />
                   Working Hours
+                </TabsTrigger>
+                <TabsTrigger value="timeslots">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Timeslot Heatmap
                 </TabsTrigger>
                 <TabsTrigger value="services">
                   <Package className="mr-2 h-4 w-4" />
@@ -356,8 +379,95 @@ export function BranchManagement() {
                   })}
                 </div>
                 <Button onClick={handleSaveWorkingHours} className="w-full">
-                  Save Working Hours & Generate Time Slots
+                  Save Working Hours & Update Time Slots
                 </Button>
+              </TabsContent>
+
+              <TabsContent value="timeslots" className="space-y-4">
+                <div className="overflow-x-auto">
+                  {!timeSlots?.length ? (
+                    <p className="text-center text-muted-foreground py-8">
+                      No time slots available. Configure working hours first.
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {(() => {
+                        // Group time slots by date
+                        const slotsByDate = timeSlots.reduce((acc, slot) => {
+                          const date = slot.slot_date;
+                          if (!acc[date]) acc[date] = [];
+                          acc[date].push(slot);
+                          return acc;
+                        }, {} as Record<string, typeof timeSlots>);
+
+                        return Object.entries(slotsByDate).map(([date, slots]) => (
+                          <div key={date} className="border rounded-lg p-4">
+                            <h3 className="font-semibold mb-3">
+                              {new Date(date + 'T00:00:00').toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                              })}
+                            </h3>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                              {slots.map((slot) => {
+                                const remaining = slot.max_capacity - slot.booked_count;
+                                const percentage = (remaining / slot.max_capacity) * 100;
+                                
+                                // Color coding based on availability
+                                let bgColor = 'bg-green-100 dark:bg-green-900/30';
+                                let textColor = 'text-green-700 dark:text-green-300';
+                                if (percentage <= 0) {
+                                  bgColor = 'bg-red-100 dark:bg-red-900/30';
+                                  textColor = 'text-red-700 dark:text-red-300';
+                                } else if (percentage <= 30) {
+                                  bgColor = 'bg-orange-100 dark:bg-orange-900/30';
+                                  textColor = 'text-orange-700 dark:text-orange-300';
+                                } else if (percentage <= 60) {
+                                  bgColor = 'bg-yellow-100 dark:bg-yellow-900/30';
+                                  textColor = 'text-yellow-700 dark:text-yellow-300';
+                                }
+
+                                return (
+                                  <div
+                                    key={slot.id}
+                                    className={`p-3 rounded-lg ${bgColor} ${textColor} text-center`}
+                                  >
+                                    <div className="font-semibold text-sm">
+                                      {slot.slot_time.substring(0, 5)}
+                                    </div>
+                                    <div className="text-xs mt-1">
+                                      {remaining}/{slot.max_capacity} left
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-4 pt-4 border-t">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-green-100 dark:bg-green-900/30 rounded"></div>
+                    <span className="text-sm">60%+ Available</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-yellow-100 dark:bg-yellow-900/30 rounded"></div>
+                    <span className="text-sm">30-60% Available</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-orange-100 dark:bg-orange-900/30 rounded"></div>
+                    <span className="text-sm">1-30% Available</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-red-100 dark:bg-red-900/30 rounded"></div>
+                    <span className="text-sm">Fully Booked</span>
+                  </div>
+                </div>
               </TabsContent>
 
               <TabsContent value="services" className="space-y-4">
