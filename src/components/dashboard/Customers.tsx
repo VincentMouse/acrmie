@@ -442,7 +442,15 @@ export function Customers() {
     <Card className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Customers</h2>
-        <Badge variant="outline">{customers?.length || 0} Total Customers</Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline">{customers?.length || 0} Total Customers</Badge>
+          {requiresPhoneSearch && (
+            <Button onClick={() => setIsCreateCustomerModalOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Customer
+            </Button>
+          )}
+        </div>
       </div>
 
       {requiresPhoneSearch && (
