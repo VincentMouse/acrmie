@@ -653,10 +653,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      generate_nickname: {
-        Args: { full_name: string }
-        Returns: string
-      }
+      generate_nickname: { Args: { full_name: string }; Returns: string }
       generate_time_slots_for_branch: {
         Args: { _branch_id: string; _days_ahead?: number }
         Returns: undefined
