@@ -301,11 +301,12 @@ export function AppointmentManagement() {
         throw new Error('ALREADY_IN_CALL');
       }
 
-      // Claim the appointment (only set processing_by, keep assigned_to and processing_at unchanged)
+      // Claim the appointment (set processing_by and processing_at for heartbeat, keep assigned_to unchanged)
       const { data, error } = await supabase
         .from('appointments')
         .update({
           processing_by: user.id,
+          processing_at: new Date().toISOString(), // Start heartbeat timestamp
         })
         .eq('id', appointment.id)
         .is('processing_by', null)
@@ -432,7 +433,7 @@ export function AppointmentManagement() {
       
       const updateData: any = {
         confirmation_status: status === 'rescheduled' ? 'confirmed' : status, // C2 becomes C6
-        processing_by: null, // Clear CS processing lock, but keep processing_at (TS call date)
+        // Keep processing_by to track who processed the appointment (don't clear it)
         appointment_date: combinedDateTime,
         branch_id: editableFields.branchId,
         notes: editableFields.notes,
@@ -663,7 +664,7 @@ export function AppointmentManagement() {
         appointment_date: data.appointmentDate,
         notes: data.notes,
         created_by: user.id,
-        processing_at: new Date().toISOString(),
+        // Don't set processing_at here - it should be set when CS starts calling for heartbeat tracking
       }]);
 
       if (error) throw error;
@@ -1153,7 +1154,10 @@ export function AppointmentManagement() {
             {upcomingAppointments?.map((appointment) => {
               const isRegistered = !!appointment.booking_id && !appointment.pending_reschedule;
               const isPendingReschedule = !!appointment.pending_reschedule;
-              const isProcessing = !!appointment.processing_by;
+              // Check if call is currently active (processing_at updated within last 2 minutes)
+              const isProcessing = !!appointment.processing_by && 
+                appointment.processing_at && 
+                (new Date().getTime() - new Date(appointment.processing_at).getTime()) < 2 * 60 * 1000;
               const serviceName = servicesMap.get(appointment.service_product) || appointment.service_product || '-';
               
               // Color coding: green = registered, yellow = pending reschedule, white = not registered
@@ -1169,8 +1173,8 @@ export function AppointmentManagement() {
                   className={rowColor}
                 >
                   <TableCell>
-                    {appointment.processing_at 
-                      ? format(new Date(appointment.processing_at), 'PPp')
+                    {appointment.created_at 
+                      ? format(new Date(appointment.created_at), 'PPp')
                       : '-'}
                   </TableCell>
                   <TableCell className="font-medium">
@@ -1220,7 +1224,7 @@ export function AppointmentManagement() {
                           {(appointment as any).processing?.nickname || 'Unknown'} - In Call
                         </Badge>
                       </div>
-                    ) : appointment.processing_by && (appointment.is_completed || isFinalStatus(appointment)) ? (
+                    ) : appointment.processing_by ? (
                       <span>{(appointment as any).processing?.nickname || '-'}</span>
                     ) : (
                       <span className="text-muted-foreground">-</span>

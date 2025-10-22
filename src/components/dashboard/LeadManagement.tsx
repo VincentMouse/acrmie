@@ -961,7 +961,7 @@ export function LeadManagement() {
             created_by: user?.id,
             notes: updates.notes,
             service_product: (branchServices?.find(s => s.id === suggestedService)?.name) || (branchServices?.find(s => s.id === concurrentService)?.name) || pulledLead.service_product,
-            processing_at: new Date().toISOString(),
+            // Don't set processing_at here - it should be set when CS starts calling for heartbeat tracking
           });
 
         if (appointmentError) throw appointmentError;
