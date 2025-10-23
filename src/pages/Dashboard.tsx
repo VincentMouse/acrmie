@@ -14,7 +14,7 @@ import { Reports } from '@/components/dashboard/Reports';
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
-  const { isCustomerService, isViewOnly, isLoading: rolesLoading } = useUserRole();
+  const { isAdmin, isSalesManager, isOnlineSales, isTeleSales, isCustomerService, isViewOnly, isLoading: rolesLoading } = useUserRole();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,21 +36,51 @@ export default function Dashboard() {
   // Determine default route based on role
   const defaultRoute = isCustomerService 
     ? "/dashboard/appointments" 
+    : isTeleSales
+    ? "/dashboard/lead-management"
     : (isViewOnly ? "/dashboard/lead-management" : "/dashboard/leads");
 
   return (
     <DashboardLayout>
       <Routes>
         <Route path="/" element={<Navigate to={defaultRoute} replace />} />
-        <Route path="/leads" element={<LeadManagement />} />
+        <Route 
+          path="/leads" 
+          element={
+            (isAdmin || isSalesManager || isOnlineSales || isViewOnly) 
+              ? <LeadManagement /> 
+              : <Navigate to={defaultRoute} replace />
+          } 
+        />
         <Route path="/lead-management" element={<LeadManagement />} />
-        <Route path="/ingestion" element={<LeadIngestion />} />
+        <Route 
+          path="/ingestion" 
+          element={
+            (isAdmin || isSalesManager || isOnlineSales) 
+              ? <LeadIngestion /> 
+              : <Navigate to={defaultRoute} replace />
+          } 
+        />
         <Route path="/appointments" element={<AppointmentManagement />} />
         <Route path="/customers" element={<Customers />} />
-        <Route path="/branches" element={<BranchManagement />} />
+        <Route 
+          path="/branches" 
+          element={
+            (isAdmin || isSalesManager) 
+              ? <BranchManagement /> 
+              : <Navigate to={defaultRoute} replace />
+          } 
+        />
         <Route path="/reports/:reportType" element={<Reports />} />
         <Route path="/reports" element={<Navigate to="/dashboard/reports/overall" replace />} />
-        <Route path="/users" element={<UserManagement />} />
+        <Route 
+          path="/users" 
+          element={
+            isAdmin 
+              ? <UserManagement /> 
+              : <Navigate to={defaultRoute} replace />
+          } 
+        />
         
       </Routes>
     </DashboardLayout>
