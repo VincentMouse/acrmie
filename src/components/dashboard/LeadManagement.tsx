@@ -123,8 +123,7 @@ export function LeadManagement() {
         .from('leads')
         .update({ 
           assigned_to: null, 
-          assigned_at: null,
-          status: 'L0-Fresh Lead' as any, // Reset to L0 when unassigning
+          assigned_at: null 
         })
         .eq('phone', phone);
       
@@ -878,6 +877,7 @@ export function LeadManagement() {
       if (statusUpdate === 'L2-Call reschedule') {
         if (!callbackDate) throw new Error('Callback date is required for L2');
         if (!callbackTime) throw new Error('Callback time is required for L2');
+        if (selfManagedL2Count >= 5) throw new Error('You have reached the maximum of 5 self-managed callback leads. Please process existing L2 leads first.');
       }
 
       // Validate L6 specific fields
@@ -910,22 +910,15 @@ export function LeadManagement() {
       };
 
 
-      // Handle L2 (Call Rescheduled) assignment logic
+      // Handle L2 (Call Rescheduled) - MUST be assigned to self only
       if (statusUpdate === 'L2-Call reschedule') {
-        if (assignTo === 'self') {
-          // Keep assigned to current user for self-managed callback
-          updates.assigned_to = pulledLead.assigned_to;
-          updates.assigned_at = pulledLead.assigned_at;
-        } else {
-          // Return to pool (unassign) and reset to L0
-          updates.assigned_to = null;
-          updates.assigned_at = null;
-          updates.status = 'L0-Fresh Lead' as any; // Reset status to L0 when returning to pool
-          updates.cooldown_until = null; // Clear cooldown when returning to pool
-        }
+        // L2 leads MUST stay assigned to the agent who created them
+        // They should never return to pool as unassigned L2 leads
+        updates.assigned_to = pulledLead.assigned_to;
+        updates.assigned_at = pulledLead.assigned_at;
 
-        // Set callback datetime in cooldown_until for priority system (only for self-assignment)
-        if (assignTo === 'self' && callbackDate && callbackTime) {
+        // Set callback datetime in cooldown_until for priority system
+        if (callbackDate && callbackTime) {
           const [hours, minutes] = callbackTime.split(':');
           const callbackDateTime = setMinutes(setHours(callbackDate, parseInt(hours)), parseInt(minutes));
           updates.cooldown_until = callbackDateTime.toISOString();
@@ -1024,15 +1017,13 @@ export function LeadManagement() {
   useEffect(() => {
     if (statusUpdate === 'L2-Call reschedule') {
       setCallOutcome('Call Rescheduled');
-      // If user has 5+ self-managed L2 leads, force assign to team
-      if (selfManagedL2Count >= 5) {
-        setAssignTo('team');
-      }
+      // L2 is always assigned to self - no option to return to pool
+      setAssignTo('self');
     } else {
       // Reset call outcome when status changes from L2 or to L1
       setCallOutcome('');
     }
-  }, [statusUpdate, selfManagedL2Count]);
+  }, [statusUpdate]);
 
   // Timer for lead call tracking - increment elapsed time during call
   useEffect(() => {
@@ -1806,26 +1797,20 @@ export function LeadManagement() {
                             </Select>
                           </div>
 
-                          <div className="space-y-2">
-                            <Label htmlFor="assign-to">Assign To *</Label>
-                            <Select 
-                              value={assignTo} 
-                              onValueChange={(val) => setAssignTo(val as 'self' | 'team')}
-                              disabled={selfManagedL2Count >= 5 && assignTo === 'self'}
-                            >
-                              <SelectTrigger id="assign-to">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="self" disabled={selfManagedL2Count >= 5}>
-                                  Self {selfManagedL2Count >= 5 && '(Limit reached: 5/5)'}
-                                </SelectItem>
-                                <SelectItem value="team">All of Team</SelectItem>
-                              </SelectContent>
-                            </Select>
+                          {/* L2 is ALWAYS assigned to self - no option to return to pool */}
+                          <div className={cn(
+                            "p-3 rounded-lg border",
+                            selfManagedL2Count >= 5 
+                              ? "bg-destructive/10 border-destructive" 
+                              : "bg-muted/50 border-border"
+                          )}>
+                            <p className="text-sm">
+                              <strong>Assignment:</strong> L2 callback leads are always assigned to you (self-managed).
+                            </p>
                             {selfManagedL2Count >= 5 && (
-                              <p className="text-sm text-destructive">
-                                You have reached the maximum of 5 self-managed callback leads
+                              <p className="text-sm text-destructive mt-2">
+                                ⚠️ You have reached the maximum of 5 self-managed callback leads ({selfManagedL2Count}/5). 
+                                Please process existing L2 leads before creating new ones.
                               </p>
                             )}
                           </div>
