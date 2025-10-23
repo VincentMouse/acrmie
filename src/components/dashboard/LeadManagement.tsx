@@ -123,7 +123,8 @@ export function LeadManagement() {
         .from('leads')
         .update({ 
           assigned_to: null, 
-          assigned_at: null 
+          assigned_at: null,
+          status: 'L0-Fresh Lead' as any, // Reset to L0 when unassigning
         })
         .eq('phone', phone);
       
@@ -916,13 +917,15 @@ export function LeadManagement() {
           updates.assigned_to = pulledLead.assigned_to;
           updates.assigned_at = pulledLead.assigned_at;
         } else {
-          // Return to pool (unassign)
+          // Return to pool (unassign) and reset to L0
           updates.assigned_to = null;
           updates.assigned_at = null;
+          updates.status = 'L0-Fresh Lead' as any; // Reset status to L0 when returning to pool
+          updates.cooldown_until = null; // Clear cooldown when returning to pool
         }
 
-        // Set callback datetime in cooldown_until for priority system
-        if (callbackDate && callbackTime) {
+        // Set callback datetime in cooldown_until for priority system (only for self-assignment)
+        if (assignTo === 'self' && callbackDate && callbackTime) {
           const [hours, minutes] = callbackTime.split(':');
           const callbackDateTime = setMinutes(setHours(callbackDate, parseInt(hours)), parseInt(minutes));
           updates.cooldown_until = callbackDateTime.toISOString();
