@@ -8,7 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronRight, Mail, Search, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight, Mail, Search, Plus, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUserRole } from '@/hooks/useUserRole';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -89,6 +89,27 @@ export function Customers() {
   const [openSuggestedServiceCombo, setOpenSuggestedServiceCombo] = useState(false);
   const [openAdditionalServiceCombo, setOpenAdditionalServiceCombo] = useState(false);
   const [openConcurrentServiceCombo, setOpenConcurrentServiceCombo] = useState(false);
+
+  // Call Modal States
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [callLead, setCallLead] = useState<Lead | null>(null);
+  const [callCustomerType, setCallCustomerType] = useState<'consultation' | 'followup' | ''>('');
+  const [callSelectedBranch, setCallSelectedBranch] = useState('');
+  const [callAppointmentDate, setCallAppointmentDate] = useState<Date>();
+  const [callAppointmentTimeSlot, setCallAppointmentTimeSlot] = useState('');
+  const [callConcern, setCallConcern] = useState('');
+  const [callExpectation, setCallExpectation] = useState('');
+  const [callBudget, setCallBudget] = useState('');
+  const [callSuggestedService, setCallSuggestedService] = useState('');
+  const [callSuggestedServiceDetails, setCallSuggestedServiceDetails] = useState<{price: number, treatments: number} | null>(null);
+  const [callAdditionalSuggestedService, setCallAdditionalSuggestedService] = useState('');
+  const [callAdditionalNotes, setCallAdditionalNotes] = useState('');
+  const [callConcurrentService, setCallConcurrentService] = useState('');
+  const [callConcurrentServiceDetails, setCallConcurrentServiceDetails] = useState<{price: number, treatments: number} | null>(null);
+  const [callSessionNumber, setCallSessionNumber] = useState('');
+  const [openCallSuggestedServiceCombo, setOpenCallSuggestedServiceCombo] = useState(false);
+  const [openCallAdditionalServiceCombo, setOpenCallAdditionalServiceCombo] = useState(false);
+  const [openCallConcurrentServiceCombo, setOpenCallConcurrentServiceCombo] = useState(false);
 
   const { data: customers, isLoading } = useQuery({
     queryKey: ['customers', searchQuery, requiresPhoneSearch],
@@ -314,6 +335,39 @@ export function Customers() {
     enabled: !!selectedBranch && !!appointmentDate,
   });
 
+  // Fetch services/products for call modal branch
+  const { data: callBranchServices } = useQuery({
+    queryKey: ['call-branch-services', callSelectedBranch],
+    queryFn: async () => {
+      if (!callSelectedBranch) return [];
+      const { data, error } = await supabase
+        .from('services_products')
+        .select('*')
+        .eq('branch_id', callSelectedBranch)
+        .order('name', { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!callSelectedBranch,
+  });
+
+  // Fetch available time slots for call modal
+  const { data: callAvailableTimeSlots } = useQuery({
+    queryKey: ['call-time-slots', callSelectedBranch, callAppointmentDate],
+    queryFn: async () => {
+      if (!callSelectedBranch || !callAppointmentDate) return [];
+      const { data, error } = await supabase
+        .from('time_slots')
+        .select('*')
+        .eq('branch_id', callSelectedBranch)
+        .eq('slot_date', format(callAppointmentDate, 'yyyy-MM-dd'))
+        .order('slot_time', { ascending: true });
+      if (error) throw error;
+      return data?.filter(slot => (slot.booked_count || 0) < (slot.max_capacity || 7)) || [];
+    },
+    enabled: !!callSelectedBranch && !!callAppointmentDate,
+  });
+
   const createCustomerMutation = useMutation({
     mutationFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -419,6 +473,105 @@ export function Customers() {
     },
   });
 
+  const processLeadCallMutation = useMutation({
+    mutationFn: async () => {
+      if (!callLead) throw new Error('No lead selected');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // Update lead status to L6
+      const { error: leadError } = await supabase
+        .from('leads')
+        .update({ 
+          status: 'L6-Appointment set',
+          processed_at: new Date().toISOString(),
+          service_product: callBranchServices?.find(s => s.id === (callCustomerType === 'consultation' ? callSuggestedService : callConcurrentService))?.name || callLead.service_product,
+        })
+        .eq('id', callLead.id);
+
+      if (leadError) throw leadError;
+
+      // Get time slot details
+      const { data: timeSlotData, error: timeSlotError } = await supabase
+        .from('time_slots')
+        .select('*')
+        .eq('id', callAppointmentTimeSlot)
+        .single();
+
+      if (timeSlotError) throw timeSlotError;
+
+      // Create appointment
+      const appointmentDateTime = setMinutes(
+        setHours(callAppointmentDate!, parseInt(timeSlotData.slot_time.split(':')[0])),
+        parseInt(timeSlotData.slot_time.split(':')[1])
+      );
+
+      const appointmentNotes = callCustomerType === 'consultation'
+        ? `Concern: ${callConcern}\nExpectation: ${callExpectation}\nBudget: ${callBudget}\nSuggested Service: ${callBranchServices?.find(s => s.id === callSuggestedService)?.name}\n${callAdditionalSuggestedService ? `Additional Suggested Service: ${callBranchServices?.find(s => s.id === callAdditionalSuggestedService)?.name}\n` : ''}${callAdditionalNotes ? `Notes: ${callAdditionalNotes}` : ''}`
+        : `Concurrent Service: ${callBranchServices?.find(s => s.id === callConcurrentService)?.name}\nSession Number: ${callSessionNumber}`;
+
+      const { error: appointmentError } = await supabase
+        .from('appointments')
+        .insert({
+          lead_id: callLead.id,
+          assigned_to: user.id,
+          branch_id: callSelectedBranch,
+          time_slot_id: callAppointmentTimeSlot,
+          appointment_date: appointmentDateTime.toISOString(),
+          service_product: callBranchServices?.find(s => s.id === (callCustomerType === 'consultation' ? callSuggestedService : callConcurrentService))?.name,
+          notes: appointmentNotes,
+          created_by: user.id,
+        });
+
+      if (appointmentError) throw appointmentError;
+
+      // Update time slot booked count
+      await supabase
+        .from('time_slots')
+        .update({ booked_count: (timeSlotData.booked_count || 0) + 1 })
+        .eq('id', callAppointmentTimeSlot);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-appointments'] });
+      setIsCallModalOpen(false);
+      // Reset call form
+      setCallLead(null);
+      setCallCustomerType('');
+      setCallSelectedBranch('');
+      setCallAppointmentDate(undefined);
+      setCallAppointmentTimeSlot('');
+      setCallConcern('');
+      setCallExpectation('');
+      setCallBudget('');
+      setCallSuggestedService('');
+      setCallSuggestedServiceDetails(null);
+      setCallAdditionalSuggestedService('');
+      setCallAdditionalNotes('');
+      setCallConcurrentService('');
+      setCallConcurrentServiceDetails(null);
+      setCallSessionNumber('');
+      toast({
+        title: 'Appointment set',
+        description: 'Lead has been updated and appointment created successfully.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Error',
+        description: 'Failed to process lead call. Please try again.',
+        variant: 'destructive',
+      });
+      console.error('Error processing lead call:', error);
+    },
+  });
+
+  const handleOpenCallModal = (lead: Lead) => {
+    setCallLead(lead);
+    setIsCallModalOpen(true);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -483,6 +636,38 @@ export function Customers() {
                 <Plus className="h-4 w-4 mr-2" />
                 Create Customer
               </Button>
+            </div>
+          )}
+
+          {searchQuery && customers && customers.length > 0 && isTeleSales && (
+            <div className="mt-4">
+              {customers.map((customer) => {
+                const customerLeads = leadsMap?.[customer.phone] || [];
+                const latestLead = customerLeads[0]; // Leads are already sorted by created_at desc
+                const shouldShowCallButton = latestLead && 
+                  latestLead.status !== 'L0-Fresh Lead' && 
+                  latestLead.status !== 'L6-Appointment set';
+
+                if (!shouldShowCallButton) return null;
+
+                return (
+                  <div key={customer.id} className="p-4 bg-primary/5 rounded-lg border">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Customer: {customer.name}</p>
+                        <p className="text-sm text-muted-foreground">Latest Lead Status: {latestLead.status}</p>
+                      </div>
+                      <Button
+                        onClick={() => handleOpenCallModal(latestLead)}
+                        className="gap-2"
+                      >
+                        <Phone className="h-4 w-4" />
+                        Call
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1173,6 +1358,452 @@ export function Customers() {
               }
             >
               Create Customer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Call Modal for Existing Customer Lead */}
+      <Dialog open={isCallModalOpen} onOpenChange={setIsCallModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5" />
+              Process Lead Call - Set Appointment (L6)
+            </DialogTitle>
+            <DialogDescription>
+              Update the lead status to L6 and create an appointment
+            </DialogDescription>
+          </DialogHeader>
+
+          {callLead && (
+            <div className="space-y-6">
+              {/* Customer Details */}
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <h4 className="font-semibold text-sm mb-3">Customer Information</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium">Name:</span>
+                    <p className="text-muted-foreground">{callLead.first_name} {callLead.last_name}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium">Phone:</span>
+                    <p className="text-muted-foreground font-mono">{(callLead as any).phone}</p>
+                  </div>
+                  <div>
+                    <span className="font-medium">Current Status:</span>
+                    <Badge className={getStatusColor(callLead.status)}>{callLead.status}</Badge>
+                  </div>
+                  <div>
+                    <span className="font-medium">Service/Product:</span>
+                    <p className="text-muted-foreground">{callLead.service_product || '-'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Appointment Form */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="call-customer-type">Type of Customer *</Label>
+                  <Select value={callCustomerType} onValueChange={(value) => setCallCustomerType(value as 'consultation' | 'followup')}>
+                    <SelectTrigger id="call-customer-type">
+                      <SelectValue placeholder="Select customer type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="consultation">Consultation needed</SelectItem>
+                      <SelectItem value="followup">Follow up sessions</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="call-branch">Branch *</Label>
+                  <Select 
+                    value={callSelectedBranch} 
+                    onValueChange={(value) => {
+                      setCallSelectedBranch(value);
+                      setCallAppointmentDate(undefined);
+                      setCallAppointmentTimeSlot('');
+                    }}
+                  >
+                    <SelectTrigger id="call-branch">
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches?.map((branch) => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {branch.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="call-appointment-date">Appointment Date *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        id="call-appointment-date"
+                        variant="outline"
+                        disabled={!callSelectedBranch}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !callAppointmentDate && "text-muted-foreground",
+                          !callSelectedBranch && "opacity-50 cursor-not-allowed"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {callAppointmentDate ? format(callAppointmentDate, 'PPP') : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={callAppointmentDate}
+                        onSelect={(date) => {
+                          setCallAppointmentDate(date);
+                          setCallAppointmentTimeSlot('');
+                        }}
+                        disabled={(date) => date < new Date()}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="call-appointment-time">Appointment Time *</Label>
+                  <Select 
+                    value={callAppointmentTimeSlot} 
+                    onValueChange={setCallAppointmentTimeSlot}
+                    disabled={!callSelectedBranch || !callAppointmentDate}
+                  >
+                    <SelectTrigger 
+                      id="call-appointment-time"
+                      className={cn(
+                        (!callSelectedBranch || !callAppointmentDate) && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <SelectValue placeholder="Select time slot" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {callAvailableTimeSlots && callAvailableTimeSlots.length > 0 ? (
+                        callAvailableTimeSlots.map((slot) => (
+                          <SelectItem key={slot.id} value={slot.id}>
+                            {slot.slot_time} ({slot.max_capacity - (slot.booked_count || 0)} slots available)
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-slots" disabled>
+                          No available slots
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Consultation specific fields */}
+                {callCustomerType === 'consultation' && (
+                  <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                    <h4 className="font-semibold text-sm">Consultation Details</h4>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="call-concern">Concern *</Label>
+                      <Textarea
+                        id="call-concern"
+                        placeholder="Enter customer's concern..."
+                        value={callConcern}
+                        onChange={(e) => setCallConcern(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="call-expectation">Expectation *</Label>
+                      <Textarea
+                        id="call-expectation"
+                        placeholder="Enter customer's expectation..."
+                        value={callExpectation}
+                        onChange={(e) => setCallExpectation(e.target.value)}
+                        rows={3}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="call-budget">Budget *</Label>
+                      <Input
+                        id="call-budget"
+                        placeholder="Enter budget..."
+                        value={callBudget}
+                        onChange={(e) => setCallBudget(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="call-suggested-service">Suggested Service *</Label>
+                      <Popover open={openCallSuggestedServiceCombo} onOpenChange={setOpenCallSuggestedServiceCombo}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openCallSuggestedServiceCombo}
+                            className="w-full justify-between"
+                            disabled={!callSelectedBranch}
+                          >
+                            {callSuggestedService
+                              ? callBranchServices?.find((service) => service.id === callSuggestedService)?.name
+                              : "Select service..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search service..." />
+                            <CommandList>
+                              <CommandEmpty>No service found.</CommandEmpty>
+                              <CommandGroup>
+                                {callBranchServices?.map((service) => (
+                                  <CommandItem
+                                    key={service.id}
+                                    value={service.name}
+                                    onSelect={() => {
+                                      setCallSuggestedService(service.id);
+                                      setCallSuggestedServiceDetails({
+                                        price: service.price,
+                                        treatments: service.number_of_treatments || 0
+                                      });
+                                      setOpenCallSuggestedServiceCombo(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        callSuggestedService === service.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {service.name} - {service.category}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    {callSuggestedServiceDetails && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Price</Label>
+                          <Input
+                            value={callSuggestedServiceDetails.price}
+                            readOnly
+                            className="bg-muted"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Number of Treatments</Label>
+                          <Input
+                            value={callSuggestedServiceDetails.treatments || 'N/A'}
+                            readOnly
+                            className="bg-muted"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="call-additional-suggested-service">Additional Suggested Service</Label>
+                      <Popover open={openCallAdditionalServiceCombo} onOpenChange={setOpenCallAdditionalServiceCombo}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openCallAdditionalServiceCombo}
+                            className="w-full justify-between"
+                            disabled={!callSelectedBranch}
+                          >
+                            {callAdditionalSuggestedService
+                              ? callBranchServices?.find((service) => service.id === callAdditionalSuggestedService)?.name
+                              : "Select service (optional)..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search service..." />
+                            <CommandList>
+                              <CommandEmpty>No service found.</CommandEmpty>
+                              <CommandGroup>
+                                {callBranchServices?.map((service) => (
+                                  <CommandItem
+                                    key={service.id}
+                                    value={service.name}
+                                    onSelect={() => {
+                                      setCallAdditionalSuggestedService(service.id);
+                                      setOpenCallAdditionalServiceCombo(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        callAdditionalSuggestedService === service.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {service.name} - {service.category}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="call-additional-notes">Additional Notes</Label>
+                      <Textarea
+                        id="call-additional-notes"
+                        placeholder="Enter any additional notes..."
+                        value={callAdditionalNotes}
+                        onChange={(e) => setCallAdditionalNotes(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Follow-up session specific fields */}
+                {callCustomerType === 'followup' && (
+                  <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                    <h4 className="font-semibold text-sm">Follow-up Session Details</h4>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="call-concurrent-service">Concurrent Service *</Label>
+                      <Popover open={openCallConcurrentServiceCombo} onOpenChange={setOpenCallConcurrentServiceCombo}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openCallConcurrentServiceCombo}
+                            className="w-full justify-between"
+                            disabled={!callSelectedBranch}
+                          >
+                            {callConcurrentService
+                              ? callBranchServices?.find((service) => service.id === callConcurrentService)?.name
+                              : "Select service..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="Search service..." />
+                            <CommandList>
+                              <CommandEmpty>No service found.</CommandEmpty>
+                              <CommandGroup>
+                                {callBranchServices?.map((service) => (
+                                  <CommandItem
+                                    key={service.id}
+                                    value={service.name}
+                                    onSelect={() => {
+                                      setCallConcurrentService(service.id);
+                                      setCallConcurrentServiceDetails({
+                                        price: service.price,
+                                        treatments: service.number_of_treatments || 0
+                                      });
+                                      setOpenCallConcurrentServiceCombo(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        callConcurrentService === service.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {service.name} - {service.category}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    {callConcurrentServiceDetails && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Price</Label>
+                          <Input
+                            value={callConcurrentServiceDetails.price}
+                            readOnly
+                            className="bg-muted"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Number of Treatments</Label>
+                          <Input
+                            value={callConcurrentServiceDetails.treatments || 'N/A'}
+                            readOnly
+                            className="bg-muted"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="call-session-number">Session Number *</Label>
+                      <Input
+                        id="call-session-number"
+                        placeholder="Enter session number..."
+                        value={callSessionNumber}
+                        onChange={(e) => setCallSessionNumber(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCallModalOpen(false);
+                setCallLead(null);
+                setCallCustomerType('');
+                setCallSelectedBranch('');
+                setCallAppointmentDate(undefined);
+                setCallAppointmentTimeSlot('');
+                setCallConcern('');
+                setCallExpectation('');
+                setCallBudget('');
+                setCallSuggestedService('');
+                setCallSuggestedServiceDetails(null);
+                setCallAdditionalSuggestedService('');
+                setCallAdditionalNotes('');
+                setCallConcurrentService('');
+                setCallConcurrentServiceDetails(null);
+                setCallSessionNumber('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => processLeadCallMutation.mutate()}
+              disabled={
+                !callCustomerType ||
+                !callSelectedBranch ||
+                !callAppointmentDate ||
+                !callAppointmentTimeSlot ||
+                processLeadCallMutation.isPending ||
+                (callCustomerType === 'consultation' && (!callConcern || !callExpectation || !callBudget || !callSuggestedService)) ||
+                (callCustomerType === 'followup' && (!callConcurrentService || !callSessionNumber))
+              }
+            >
+              Set Appointment (L6)
             </Button>
           </DialogFooter>
         </DialogContent>
