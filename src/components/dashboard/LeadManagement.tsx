@@ -877,7 +877,6 @@ export function LeadManagement() {
       if (statusUpdate === 'L2-Call reschedule') {
         if (!callbackDate) throw new Error('Callback date is required for L2');
         if (!callbackTime) throw new Error('Callback time is required for L2');
-        if (selfManagedL2Count >= 5) throw new Error('You have reached the maximum of 5 self-managed callback leads. Please process existing L2 leads first.');
       }
 
       // Validate L6 specific fields
@@ -910,12 +909,17 @@ export function LeadManagement() {
       };
 
 
-      // Handle L2 (Call Rescheduled) - MUST be assigned to self only
+      // Handle L2 (Call Rescheduled) assignment logic
       if (statusUpdate === 'L2-Call reschedule') {
-        // L2 leads MUST stay assigned to the agent who created them
-        // They should never return to pool as unassigned L2 leads
-        updates.assigned_to = pulledLead.assigned_to;
-        updates.assigned_at = pulledLead.assigned_at;
+        if (assignTo === 'self') {
+          // Keep assigned to current user for self-managed callback
+          updates.assigned_to = pulledLead.assigned_to;
+          updates.assigned_at = pulledLead.assigned_at;
+        } else {
+          // Return to pool (unassign)
+          updates.assigned_to = null;
+          updates.assigned_at = null;
+        }
 
         // Set callback datetime in cooldown_until for priority system
         if (callbackDate && callbackTime) {
@@ -1017,13 +1021,15 @@ export function LeadManagement() {
   useEffect(() => {
     if (statusUpdate === 'L2-Call reschedule') {
       setCallOutcome('Call Rescheduled');
-      // L2 is always assigned to self - no option to return to pool
-      setAssignTo('self');
+      // If user has 5+ self-managed L2 leads, force assign to team
+      if (selfManagedL2Count >= 5) {
+        setAssignTo('team');
+      }
     } else {
       // Reset call outcome when status changes from L2 or to L1
       setCallOutcome('');
     }
-  }, [statusUpdate]);
+  }, [statusUpdate, selfManagedL2Count]);
 
   // Timer for lead call tracking - increment elapsed time during call
   useEffect(() => {
@@ -1797,20 +1803,26 @@ export function LeadManagement() {
                             </Select>
                           </div>
 
-                          {/* L2 is ALWAYS assigned to self - no option to return to pool */}
-                          <div className={cn(
-                            "p-3 rounded-lg border",
-                            selfManagedL2Count >= 5 
-                              ? "bg-destructive/10 border-destructive" 
-                              : "bg-muted/50 border-border"
-                          )}>
-                            <p className="text-sm">
-                              <strong>Assignment:</strong> L2 callback leads are always assigned to you (self-managed).
-                            </p>
+                          <div className="space-y-2">
+                            <Label htmlFor="assign-to">Assign To *</Label>
+                            <Select 
+                              value={assignTo} 
+                              onValueChange={(val) => setAssignTo(val as 'self' | 'team')}
+                              disabled={selfManagedL2Count >= 5 && assignTo === 'self'}
+                            >
+                              <SelectTrigger id="assign-to">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="self" disabled={selfManagedL2Count >= 5}>
+                                  Self {selfManagedL2Count >= 5 && '(Limit reached: 5/5)'}
+                                </SelectItem>
+                                <SelectItem value="team">All of Team</SelectItem>
+                              </SelectContent>
+                            </Select>
                             {selfManagedL2Count >= 5 && (
-                              <p className="text-sm text-destructive mt-2">
-                                ⚠️ You have reached the maximum of 5 self-managed callback leads ({selfManagedL2Count}/5). 
-                                Please process existing L2 leads before creating new ones.
+                              <p className="text-sm text-destructive">
+                                You have reached the maximum of 5 self-managed callback leads
                               </p>
                             )}
                           </div>
