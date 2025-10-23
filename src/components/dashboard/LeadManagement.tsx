@@ -558,8 +558,37 @@ export function LeadManagement() {
     enabled: isLeadManagementPage,
   });
 
-  // Count self-managed L2 leads for current user
-  const selfManagedL2Count = followUpLeads?.length || 0;
+  // Count self-managed L2 leads for current user (only L2s created by the user, not picked up from pool)
+  const { data: selfManagedL2Data } = useQuery({
+    queryKey: ['self-managed-l2-count', isLeadManagementPage],
+    queryFn: async () => {
+      if (!isLeadManagementPage) return [];
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      
+      // Get L2 leads assigned to user where they were the ones who set it to L2
+      const { data, error } = await supabase
+        .from('leads')
+        .select(`
+          id,
+          lead_history!inner(changed_by, new_status)
+        `)
+        .eq('assigned_to', user.id)
+        .eq('status', 'L2-Call reschedule')
+        .eq('lead_history.changed_by', user.id)
+        .eq('lead_history.new_status', 'L2-Call reschedule');
+      
+      if (error) throw error;
+      
+      // Get unique lead IDs (in case there are multiple history entries)
+      const uniqueLeadIds = new Set(data?.map(item => item.id) || []);
+      return Array.from(uniqueLeadIds);
+    },
+    enabled: isLeadManagementPage,
+  });
+  
+  const selfManagedL2Count = selfManagedL2Data?.length || 0;
 
   // Top agents queries - only on Lead Management page
   const { data: topAgentsToday } = useQuery<Array<{ name: string; count: number }>>({
