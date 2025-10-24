@@ -289,12 +289,13 @@ export function AppointmentManagement() {
     mutationFn: async (appointment: any) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      // First check if user already has an appointment in call
+      // First check if user already has an active call (processing heartbeat within last 60 seconds)
+      const recentThreshold = new Date(Date.now() - 60 * 1000).toISOString();
       const { data: existingInCall } = await supabase
         .from('appointments')
         .select('id')
         .eq('processing_by', user.id)
-        .not('processing_at', 'is', null)
+        .gte('processing_at', recentThreshold)
         .maybeSingle();
 
       if (existingInCall) {
