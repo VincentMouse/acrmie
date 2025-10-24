@@ -665,6 +665,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      restore_leads_to_l2: {
+        Args: {
+          admin_user_id: string
+          assigned_user_ids: string[]
+          lead_phones: string[]
+        }
+        Returns: undefined
+      }
       update_user_roles: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
