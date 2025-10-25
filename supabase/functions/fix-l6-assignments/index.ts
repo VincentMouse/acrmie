@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
     const fixed = [];
     const errors = [];
 
-    // Fix each lead
+    // Fix each lead  
     for (const lead of leadsCreatedByTeleSales) {
       console.log(`Fixing lead ${lead.phone} - ${lead.first_name} ${lead.last_name}`);
       
@@ -85,27 +85,11 @@ Deno.serve(async (req) => {
 
       if (updateError) {
         console.error(`Error updating lead ${lead.id}:`, updateError);
-        // If the trigger error occurs, manually insert history and retry
-        if (updateError.message.includes('lead_history')) {
-          // Manually insert history record first
-          await supabaseClient
-            .from('lead_history')
-            .insert({
-              lead_id: lead.id,
-              changed_by: lead.created_by,
-              old_status: 'L6-Appointment set',
-              new_status: 'L6-Appointment set',
-              old_assigned_to: null,
-              new_assigned_to: lead.created_by,
-              notes: 'Fixed assignment - set assigned_to to creator (tele sales who created the lead)'
-            });
-        } else {
-          errors.push({
-            lead_id: lead.id,
-            phone: lead.phone,
-            error: updateError.message
-          });
-        }
+        errors.push({
+          lead_id: lead.id,
+          phone: lead.phone,
+          error: updateError.message
+        });
       } else {
         fixed.push({
           id: lead.id,
