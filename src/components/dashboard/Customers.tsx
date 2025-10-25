@@ -386,6 +386,7 @@ export function Customers() {
           address: address || null,
           status: 'L6-Appointment set',
           service_product: branchServices?.find(s => s.id === (customerType === 'consultation' ? suggestedService : concurrentService))?.name || '',
+          assigned_to: user.id,
           created_by: user.id,
         })
         .select()
@@ -484,6 +485,7 @@ export function Customers() {
         .from('leads')
         .update({ 
           status: 'L6-Appointment set',
+          assigned_to: user.id,
           processed_at: new Date().toISOString(),
           service_product: callBranchServices?.find(s => s.id === (callCustomerType === 'consultation' ? callSuggestedService : callConcurrentService))?.name || callLead.service_product,
         })
