@@ -1,1 +1,4 @@
 project_id = "meogqwyyarmajtuidtjg"
+
+[functions.fix-l6-assignments]
+verify_jwt = false
