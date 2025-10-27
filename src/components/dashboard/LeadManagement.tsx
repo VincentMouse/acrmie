@@ -1139,12 +1139,13 @@ export function LeadManagement() {
       const thirtyMinutesAgo = new Date(); // Use real time for assignment expiry
       thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
 
-      // Find leads assigned to current user that have expired (excluding L2 scheduled callbacks)
+      // Find leads assigned to current user that have expired (excluding L2 scheduled callbacks and L6 appointment set)
       const { data: expiredLeads } = await supabase
         .from('leads')
         .select('id')
         .eq('assigned_to', user.id)
         .neq('status', 'L2-Call reschedule')
+        .neq('status', 'L6-Appointment set')
         .lt('assigned_at', thirtyMinutesAgo.toISOString())
         .not('assigned_at', 'is', null);
 
