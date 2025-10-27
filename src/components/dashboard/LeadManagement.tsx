@@ -938,7 +938,7 @@ export function LeadManagement() {
       };
 
 
-      // Handle L2 (Call Rescheduled) assignment logic
+      // Handle L2 (Call Rescheduled) and L6 (Appointment Set) assignment logic
       if (statusUpdate === 'L2-Call reschedule') {
         if (assignTo === 'self') {
           // Keep assigned to current user for self-managed callback
@@ -957,6 +957,10 @@ export function LeadManagement() {
           updates.cooldown_until = callbackDateTime.toISOString();
           updates.notes = `${updates.notes} | Callback: ${format(callbackDateTime, 'PPp')}`;
         }
+      } else if (statusUpdate === 'L6-Appointment set') {
+        // Keep L6 leads assigned to the agent who booked the appointment
+        updates.assigned_to = pulledLead.assigned_to;
+        updates.assigned_at = pulledLead.assigned_at;
       } else {
         // For all other statuses, unassign the lead
         // The lead will disappear from "My assigned leads" but history tracks who processed it
