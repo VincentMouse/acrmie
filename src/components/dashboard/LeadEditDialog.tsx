@@ -156,6 +156,7 @@ export function LeadEditDialog({ isOpen, onClose, onSave, lead, isSaving }: Lead
               <Select
                 value={formData.status}
                 onValueChange={(value) => setFormData({ ...formData, status: value })}
+                disabled={lead?.status === 'L6-Appointment set'}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -166,6 +167,9 @@ export function LeadEditDialog({ isOpen, onClose, onSave, lead, isSaving }: Lead
                   ))}
                 </SelectContent>
               </Select>
+              {lead?.status === 'L6-Appointment set' && (
+                <p className="text-sm text-muted-foreground">L6 status is final and cannot be changed</p>
+              )}
             </div>
 
             <div className="space-y-2">

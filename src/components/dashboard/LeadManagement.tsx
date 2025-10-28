@@ -119,6 +119,17 @@ export function LeadManagement() {
   // Quick unassign mutation for admin
   const quickUnassignMutation = useMutation({
     mutationFn: async (phone: string) => {
+      // Prevent unassigning L6 leads
+      const { data: lead } = await supabase
+        .from('leads')
+        .select('status')
+        .eq('phone', phone)
+        .single();
+      
+      if (lead?.status === 'L6-Appointment set') {
+        throw new Error('Cannot unassign L6 leads - appointment is already set');
+      }
+      
       const { error } = await supabase
         .from('leads')
         .update({ 
@@ -2453,10 +2464,12 @@ export function LeadManagement() {
                     <Button
                       size="sm"
                       variant="ghost"
+                      disabled={lead.status === 'L6-Appointment set'}
                       onClick={() => {
                         setEditingLead(lead);
                         setIsEditDialogOpen(true);
                       }}
+                      title={lead.status === 'L6-Appointment set' ? 'Cannot edit L6 leads - appointment is final' : 'Edit lead'}
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
